@@ -35,9 +35,11 @@ LOOP FOREVER:
    - `test_auroc` and other metrics from `al_run.log`.
 5. **Log Results**: Update `results.tsv`.
 6. **Decision**:
-   - If performance improves: `keep`.
-   - If performance drops: `discard` (`git reset --hard HEAD~1`).
-   - If script crashes: `crash`.
+   - Always **KEEP** all runs (do not perform `git reset`). 
+   - Each run is a valuable data point for your optimization history.
+   - If performance drops: Analyze why, adjust strategy, and commit a new experiment.
+   - If script crashes: Fix the bug, commit the fix, and retry.
+
 
 ## Constraints
 - **No Label Leakage**: Do NOT use the labels in the pool for selection. Labels should only be revealed when a molecule is selected and moved to the training set.
