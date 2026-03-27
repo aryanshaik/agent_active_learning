@@ -43,7 +43,8 @@ echo "🚀 Launching Claude Code pointing to $VLLM_URL..."
 # See: https://docs.vllm.ai/en/stable/serving/integrations/claude_code/
 export ANTHROPIC_BASE_URL="$VLLM_URL"
 export ANTHROPIC_API_KEY="sk-ant-vllm-dummy"
-export ANTHROPIC_AUTH_TOKEN="dummy"
+# REMOVED: ANTHROPIC_AUTH_TOKEN (Conflicts with local /login session)
+
 
 # Map all Claude models to our local served model
 export ANTHROPIC_DEFAULT_OPUS_MODEL="$SERVED_NAME"
