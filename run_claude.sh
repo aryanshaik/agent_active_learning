@@ -32,5 +32,6 @@ export ANTHROPIC_DEFAULT_OPUS_MODEL="$SERVED_NAME"
 export ANTHROPIC_DEFAULT_SONNET_MODEL="$SERVED_NAME"
 export ANTHROPIC_DEFAULT_HAIKU_MODEL="$SERVED_NAME"
 
-# Run Claude Code in the current repository
-claude .
+# Run Claude Code
+claude
+
