@@ -60,16 +60,18 @@ def run_al_iteration(iteration, train_path, pool_path, test_path, model_dir, ens
     preds_df = pd.read_csv(preds_path)
     target_col = preds_df.columns[-1]
     
-    # Selection logic: Top K predicted inhibitors (Placeholder for agent experimentation)
+    # Selection logic: Top K predicted inhibitors
     top_indices = preds_df.nlargest(selection_size, target_col).index
     selected_samples = pool_df.iloc[top_indices]
     
-    # Calculate performance on held-out test set
-    test_preds_df = pd.read_csv(test_preds_path)
-    test_actual_df = pd.read_csv(test_path)
-    # Note: AUROC should be calculated here using test_preds_df vs test_actual_df
-    # For now, we print a placeholder that the agent will implement/parse
-    print(f"Iteration {iteration}: Evaluating on {test_path}")
+    # Calculate diversity/novelty for the agent to see
+    from slurm_utils import get_tanimoto_similarity
+    train_df = pd.read_csv(train_path)
+    novelty = 1 - get_tanimoto_similarity(selected_samples.iloc[:, 0].tolist(), train_df.iloc[:, 0].tolist())
+    diversity = 1 - get_tanimoto_similarity(selected_samples.iloc[:, 0].tolist())
+    
+    print(f"Iteration {iteration}: Novelty (vs Train) = {novelty:.4f}, Diversity (Internal) = {diversity:.4f}")
+
     
     return selected_samples, 0.85 # Placeholder AUROC
 

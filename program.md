@@ -24,8 +24,9 @@ You are an autonomous researcher. Your primary goal is to **maximize the AUROC o
 
 LOOP FOREVER:
 
-1. **Modify `al_optimizer.py`**: Refine candidate selection strategies or training parameters. You can choose which output metrics to view and optimize after each run.
-2. **Git Commit**: `git commit -am "Explore new selection metric"`
+1. **Modify `al_optimizer.py`**: Refine candidate selection strategies or training parameters. You can choose which output metrics to view and optimize after each run (e.g. AUROC, Hit Rate, Novelty vs Train, or Internal Diversity).
+2. **Git Commit**: `git commit -am "Explore diversity-weighted selection"`
+
 3. **Run Iteration**: 
    ```bash
    python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv > al_run.log 2>&1
