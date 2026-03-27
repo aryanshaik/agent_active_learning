@@ -3,7 +3,8 @@
 # Configuration
 MODEL_PATH="/n/data1/hms/dbmi/farhat/aryan/AL/models/qwen35-27b"
 SERVED_NAME="qwen35-27b"
-PORT=8000
+PORT=8080
+
 CONDA_ENV="/home/ars3983/miniforge/envs/al-agent"
 
 echo "Starting vLLM server for Claude Code..."

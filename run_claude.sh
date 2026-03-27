@@ -6,7 +6,8 @@ cd "$PROJECT_DIR" || exit
 
 SERVED_NAME="qwen35-27b"
 
-PORT=8000
+PORT=8080
+
 
 # 1. Automatically find the compute node running vLLM
 echo "Searching for active vLLM compute node..."
