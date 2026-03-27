@@ -20,8 +20,17 @@ if [ -z "$COMPUTE_NODE" ]; then
     exit 1
 fi
 
-# Ensure port 8000 is used on that specific node
-VLLM_URL="http://${COMPUTE_NODE}:${PORT}/v1"
+# Ensure port 8080 is used
+# If we are ALREADY on the compute node, use 127.0.0.1 to avoid DNS/hostname issues
+CURRENT_HOST=$(hostname | tr -d ' ')
+if [ "$CURRENT_HOST" == "$COMPUTE_NODE" ]; then
+    VLLM_URL="http://127.0.0.1:${PORT}/v1"
+    echo "🏠 Using local loopback for vLLM"
+else
+    VLLM_URL="http://${COMPUTE_NODE}:${PORT}/v1"
+    echo "🌐 Using remote address for vLLM"
+fi
+
 
 echo "✅ Found vLLM running on $COMPUTE_NODE"
 echo "🚀 Launching Claude Code pointing to $VLLM_URL..."
