@@ -10,7 +10,8 @@ PORT=8000
 
 # 1. Automatically find the compute node running vLLM
 echo "Searching for active vLLM compute node..."
-COMPUTE_NODE=$(squeue -u $USER -p gpu -t RUNNING -h -o %N | head -n 1)
+# Using -o %N to get the nodelist, and tr to handle potential comma-separated lists
+COMPUTE_NODE=$(squeue -u $USER -p gpu -t RUNNING -h -o %N | head -n 1 | tr -d ' ')
 
 if [ -z "$COMPUTE_NODE" ]; then
     echo "❌ Error: No running GPU job found for $USER."
@@ -18,7 +19,9 @@ if [ -z "$COMPUTE_NODE" ]; then
     exit 1
 fi
 
+# Ensure port 8000 is used on that specific node
 VLLM_URL="http://${COMPUTE_NODE}:${PORT}/v1"
+
 echo "✅ Found vLLM running on $COMPUTE_NODE"
 echo "🚀 Launching Claude Code pointing to $VLLM_URL..."
 
