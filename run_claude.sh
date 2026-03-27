@@ -22,14 +22,18 @@ fi
 
 # Ensure port 8080 is used
 # If we are ALREADY on the compute node, use 127.0.0.1 to avoid DNS/hostname issues
-CURRENT_HOST=$(hostname | tr -d ' ')
-if [ "$CURRENT_HOST" == "$COMPUTE_NODE" ]; then
+# Using partial match because 'hostname' often includes more than the Slurm node name
+CURRENT_HOST=$(hostname -s | tr -d ' ')
+CLEAN_COMPUTE_NODE=$(echo "$COMPUTE_NODE" | cut -d'.' -f1 | tr -d ' ')
+
+if [[ "$CURRENT_HOST" == *"$CLEAN_COMPUTE_NODE"* ]] || [[ "$CLEAN_COMPUTE_NODE" == *"$CURRENT_HOST"* ]]; then
     VLLM_URL="http://127.0.0.1:${PORT}/v1"
-    echo "🏠 Using local loopback for vLLM"
+    echo "🏠 Using local loopback for vLLM (Detected: $CURRENT_HOST matches $CLEAN_COMPUTE_NODE)"
 else
     VLLM_URL="http://${COMPUTE_NODE}:${PORT}/v1"
-    echo "🌐 Using remote address for vLLM"
+    echo "🌐 Using remote address for vLLM ($CURRENT_HOST != $CLEAN_COMPUTE_NODE)"
 fi
+
 
 
 echo "✅ Found vLLM running on $COMPUTE_NODE"
