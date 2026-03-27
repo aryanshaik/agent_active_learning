@@ -25,7 +25,8 @@ NODE_IP=$(hostname -I | tr ' ' '\n' | grep '^10\.' | head -n 1)
 # Request a GPU node via srun and start vLLM
 # Binding specifically to $NODE_IP ensures it's reachable on the private O2 network
 srun -p gpu --gres=gpu:1 --mem=60G --time=08:00:00 --pty python -m vllm.entrypoints.openai.api_server \
-    --host "$NODE_IP" \
+    --host 0.0.0.0 \
+
     --model "$MODEL_PATH" \
     --served-model-name "$SERVED_NAME" \
     --enable-auto-tool-choice \
