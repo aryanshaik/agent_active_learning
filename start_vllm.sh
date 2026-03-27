@@ -19,8 +19,9 @@ conda activate "$CONDA_ENV"
 export LD_LIBRARY_PATH="$CONDA_ENV/lib:$LD_LIBRARY_PATH"
 
 # Request a GPU node via srun and start vLLM
-# Using --pty to keep the session interactive for easier debugging
+# Binding specifically to $(hostname -i) ensures the login node can reach it
 srun -p gpu --gres=gpu:1 --mem=60G --time=08:00:00 --pty python -m vllm.entrypoints.openai.api_server \
+    --host $(hostname -i) \
     --model "$MODEL_PATH" \
     --served-model-name "$SERVED_NAME" \
     --enable-auto-tool-choice \
@@ -31,4 +32,5 @@ srun -p gpu --gres=gpu:1 --mem=60G --time=08:00:00 --pty python -m vllm.entrypoi
     --max-model-len 65536 \
     --gpu-memory-utilization 0.9 \
     --enforce-eager
+
 
