@@ -15,9 +15,12 @@ echo "Port: $PORT"
 eval "$(conda shell.bash hook)"
 conda activate "$CONDA_ENV"
 
-# Optimized command for qwen35-27b on quad GPU nodes (~44GB VRAM)
-# Using quantization to ensure fit and memory utilization headroom
-python -m vllm.entrypoints.openai.api_server \
+# Fix for CXXABI_1.3.15 version mismatch on O2
+export LD_LIBRARY_PATH="$CONDA_ENV/lib:$LD_LIBRARY_PATH"
+
+# Request a GPU node via srun and start vLLM
+# Using --pty to keep the session interactive for easier debugging
+srun -p gpu --gres=gpu:1 --mem=60G --time=08:00:00 --pty python -m vllm.entrypoints.openai.api_server \
     --model "$MODEL_PATH" \
     --served-model-name "$SERVED_NAME" \
     --enable-auto-tool-choice \
@@ -28,3 +31,4 @@ python -m vllm.entrypoints.openai.api_server \
     --max-model-len 65536 \
     --gpu-memory-utilization 0.9 \
     --enforce-eager
+
