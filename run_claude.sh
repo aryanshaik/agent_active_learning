@@ -39,16 +39,22 @@ fi
 echo "✅ Found vLLM running on $COMPUTE_NODE"
 echo "🚀 Launching Claude Code pointing to $VLLM_URL..."
 
-# 2. Environment variables for redirecting Claude Code to vLLM
+# 2. Environment variables for official vLLM integration
+# See: https://docs.vllm.ai/en/stable/serving/integrations/claude_code/
 export ANTHROPIC_BASE_URL="$VLLM_URL"
-
 export ANTHROPIC_API_KEY="sk-ant-vllm-dummy"
+export ANTHROPIC_AUTH_TOKEN="dummy"
 
 # Map all Claude models to our local served model
 export ANTHROPIC_DEFAULT_OPUS_MODEL="$SERVED_NAME"
 export ANTHROPIC_DEFAULT_SONNET_MODEL="$SERVED_NAME"
 export ANTHROPIC_DEFAULT_HAIKU_MODEL="$SERVED_NAME"
 
+# Optimization: Disable attribution header to prevent prefix caching misses
+# Recommended for vLLM performance
+export CLAUDE_CODE_ATTRIBUTION_HEADER="0"
+
 # Run Claude Code
 claude
+
 
