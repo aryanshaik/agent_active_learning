@@ -63,11 +63,19 @@ Follow these steps to launch the autonomous optimization loop:
 
 ## 🧪 Active Learning Strategy
 
-The agent implements several acquisition functions as described in `chemprop-al-optimizer.md`, prioritizing:
--   **Inhibition**: Probability of target activity.
--   **Diversity**: Covering a wide range of chemical space within a batch.
--   **Novelty**: Prioritizing scaffolds different from the training set.
--   **Uncertainty**: Selecting samples where the model is least confident (Evidential Dirichlet).
+The agent autonomously explores acquisition functions to maximize the **AUROC on a held-out test set**. Other metrics of interest (Hit Rate, Diversity) can also be tracked.
+
+### Problem Setup
+-   **Context**: 100,000 molecule unlabeled pool.
+-   **Execution**: 10 sequential runs of selecting 10,000 molecules each.
+-   **Constraints**: No label leakage. labels from the pool are only revealed *after* selection to augment the training set.
+
+### Prioritization Factors
+The agent can experiment with various weights for:
+-   **Inhibition**: Predicted activity.
+-   **Uncertainty**: Model confidence.
+-   **Diversity/Novelty**: Chemical space coverage and scaffold uniqueness.
+-   **Other Metrics**: Any user-defined parameters of interest.
 
 ---
 *Developed for the Farhat Lab, HMS.*

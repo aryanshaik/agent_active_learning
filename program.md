@@ -2,13 +2,21 @@
 
 This is an autonomous active learning loop designed for Chemprop on HMS O2.
 
-## Setup
+## Objectives
+You are an autonomous researcher. Your primary goal is to **maximize the AUROC on a held-out test set** through iterative active learning. You may also track other metrics of interest (e.g. Hit Rate, Discovery Rate) as secondary indicators.
 
+## Problem Setup
+- **Total Pool**: 100,000 unlabeled molecules.
+- **AL Budget**: 10 runs (iterations).
+- **Selection**: Select 10,000 molecules per run.
+- **Evaluation**: Use a fixed, held-out `test_df.csv` for the final AUROC metric.
+
+## Setup
 1. **Agree on a run tag**: Propose a tag (e.g. `al_mar27`).
 2. **Create the branch**: `git checkout -b al/<tag>`
 3. **Initialize results.tsv**: Create `results.tsv` with:
    ```
-   commit	hit_rate	auroc	status	description
+   commit	test_auroc	other_metric	status	description
    ```
 4. **Environment**: Ensure `al-agent` conda env is active.
 
@@ -16,24 +24,19 @@ This is an autonomous active learning loop designed for Chemprop on HMS O2.
 
 LOOP FOREVER:
 
-1. **Modify `al_optimizer.py`**: Tune acquisition functions or training params.
-2. **Git Commit**: `git commit -am "Try dynamic uncertainty weighting"`
+1. **Modify `al_optimizer.py`**: Refine candidate selection strategies or training parameters. You can choose which output metrics to view and optimize after each run.
+2. **Git Commit**: `git commit -am "Explore new selection metric"`
 3. **Run Iteration**: 
    ```bash
-   python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/test_df.csv > al_run.log 2>&1
+   python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv > al_run.log 2>&1
    ```
 4. **Extract Metrics**: 
-   - Hit Rate, AUROC, etc. from `al_run.log`.
+   - `test_auroc` and other metrics from `al_run.log`.
 5. **Log Results**: Update `results.tsv`.
 6. **Decision**:
-   - If performance improves: `keep` (stay on commit).
+   - If performance improves: `keep`.
    - If performance drops: `discard` (`git reset --hard HEAD~1`).
    - If script crashes: `crash`.
 
-## Strategy Refinement
-
-You are an autonomous researcher. Your goal is to maximize the **Hit Rate** and **AUROC** of the Chemprop models while maintaining chemical diversity in selected candidates.
-
-- Use **Evidential Dirichlet** for uncertainty.
-- Balance **Novelty** (Tanimoto distance) and **Inhibition** probability.
-- If you run out of ideas, analyze `al_run.log` and the `data/` distribution.
+## Constraints
+- **No Label Leakage**: Do NOT use the labels in the pool for selection. Labels should only be revealed when a molecule is selected and moved to the training set.
