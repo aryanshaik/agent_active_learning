@@ -1,13 +1,26 @@
 #!/bin/bash
 
 # Configuration
-VLLM_URL="http://localhost:8000/v1"
 SERVED_NAME="qwen35-27b"
+PORT=8000
 
-echo "Launching Claude Code pointing to local vLLM at $VLLM_URL..."
+# 1. Automatically find the compute node running vLLM
+echo "Searching for active vLLM compute node..."
+COMPUTE_NODE=$(squeue -u $USER -p gpu -t RUNNING -h -o %N | head -n 1)
 
-# Environment variables for redirecting Claude Code to vLLM
+if [ -z "$COMPUTE_NODE" ]; then
+    echo "❌ Error: No running GPU job found for $USER."
+    echo "Please start vLLM first using 'bash start_vllm.sh' and wait for it to allocate a node."
+    exit 1
+fi
+
+VLLM_URL="http://${COMPUTE_NODE}:${PORT}/v1"
+echo "✅ Found vLLM running on $COMPUTE_NODE"
+echo "🚀 Launching Claude Code pointing to $VLLM_URL..."
+
+# 2. Environment variables for redirecting Claude Code to vLLM
 export ANTHROPIC_BASE_URL="$VLLM_URL"
+
 export ANTHROPIC_API_KEY="sk-ant-vllm-dummy"
 
 # Map all Claude models to our local served model
