@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # Configuration
+PROJECT_DIR="/n/data1/hms/dbmi/farhat/aryan/AL/agent_active_learning"
+cd "$PROJECT_DIR" || exit
+
 SERVED_NAME="qwen35-27b"
+
 PORT=8000
 
 # 1. Automatically find the compute node running vLLM
