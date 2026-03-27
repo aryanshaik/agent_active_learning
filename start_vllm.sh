@@ -18,10 +18,14 @@ conda activate "$CONDA_ENV"
 # Fix for CXXABI_1.3.15 version mismatch on O2
 export LD_LIBRARY_PATH="$CONDA_ENV/lib:$LD_LIBRARY_PATH"
 
+# Get the internal node IP for binding
+NODE_IP=$(hostname -I | awk '{print $1}')
+
 # Request a GPU node via srun and start vLLM
-# Binding specifically to $(hostname -i) ensures the login node can reach it
+# Binding specifically to $NODE_IP ensures it's reachable on the private O2 network
 srun -p gpu --gres=gpu:1 --mem=60G --time=08:00:00 --pty python -m vllm.entrypoints.openai.api_server \
-    --host $(hostname -i) \
+    --host "$NODE_IP" \
+
     --model "$MODEL_PATH" \
     --served-model-name "$SERVED_NAME" \
     --enable-auto-tool-choice \
