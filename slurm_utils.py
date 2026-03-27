@@ -52,3 +52,31 @@ def wait_for_job(job_id, check_interval=60):
             break
         time.sleep(check_interval)
     print(f"Job {job_id} finished.")
+def get_tanimoto_similarity(smiles_list_a, smiles_list_b=None):
+    """
+    Calculates Tanimoto similarity between molecules.
+    If smiles_list_b is None, calculates internal pairwise similarity (Diversity).
+    If smiles_list_b is provided, calculates similarity to reference set (Novelty).
+    """
+    try:
+        from rdkit import Chem, DataStructs
+        from rdkit.Chem import AllChem
+    except ImportError:
+        print("RDKit not found. Skipping similarity calculation.")
+        return None
+
+    fps_a = [AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(s), 2) for s in smiles_list_a if Chem.MolFromSmiles(s)]
+    
+    if smiles_list_b:
+        fps_b = [AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(s), 2) for s in smiles_list_b if Chem.MolFromSmiles(s)]
+        # Calculate max similarity of each A to any B
+        similarities = [max(DataStructs.BulkTanimotoSimilarity(fp, fps_b)) for fp in fps_a]
+    else:
+        # Internal diversity: average pairwise similarity within A
+        if len(fps_a) < 2: return 0
+        sims = []
+        for i in range(len(fps_a)):
+            sims.extend(DataStructs.BulkTanimotoSimilarity(fps_a[i], fps_a[i+1:]))
+        similarities = sims
+
+    return np.mean(similarities)
