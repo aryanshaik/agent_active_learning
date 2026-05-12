@@ -1,81 +1,113 @@
-# Chemprop Active Learning Agent
+# MiniMol Active Learning Agent
 
-An autonomous active learning pipeline for molecular optimization using Chemprop, specifically designed for the **HMS O2 (SLURM)** high-performance computing cluster. 
+An autonomous active learning pipeline for molecular property prediction, designed for the **HMS O2** cluster. An LLM agent (DeepSeek via [opencode](https://github.com/sstcloud/opencode)) iteratively refines candidate selection strategies, trains an ensemble of MiniMol-based feedforward networks, and selects molecules from an unlabeled pool for labeling.
 
-This agent orchestrates an iterative "Hypothesis → Experiment → Update" loop, leveraging LLM-guided decision-making (via Claude Code + vLLM) to intelligently select candidates for screening and augment predictive models.
+## Overview
 
-## 🚀 Overview
+The Active Learning Agent automates molecular hit discovery through an iterative loop:
 
-The Active Learning Agent automates the process of discovering potent molecular inhibitors (e.g., antibiotics). It iteratively:
-1.  **Trains** a Chemprop ensemble on the current labeled dataset.
-2.  **Predicts** activity and uncertainty for a large pool of unlabeled candidates.
-3.  **Selects** the most informative candidates using a multi-objective acquisition function (Inhibition, Diversity, Novelty, Uncertainty).
-4.  **Augments** the training set with "experimentally" labeled data (simulated or real).
-5.  **Iterates** until the discovery goals or budget are met.
+1. **Train** a MiniMol + FFN ensemble on the current labeled dataset.
+2. **Predict** activity and uncertainty on a pool of unlabeled candidates.
+3. **Select** the most informative candidates using a multi-objective acquisition function (inhibition, uncertainty, novelty, diversity).
+4. **Augment** the training set with newly labeled molecules (labels revealed only after selection).
+5. **Iterate** until the discovery goals or labeling budget are met.
 
-## 🏗️ Architecture
+## Architecture
 
--   **Claude Code**: The primary agent controller and orchestrator.
--   **vLLM**: Local inference server running `qwen35-27b` to provide LLM capabilities without external API dependencies.
--   **Chemprop**: The core message-passing neural network (MPNN) framework for property prediction.
--   **SLURM**: Job scheduler for HMS O2, ensuring all compute-intensive tasks (training/prediction) are executed on dedicated GPU nodes.
+| Component | Implementation |
+|-----------|---------------|
+| **Molecular encoder** | MiniMol — Morgan fingerprints (2048-bit, radius 2) |
+| **Predictive model** | FFN ensemble (3 members, 2 hidden layers × 512 dim, batch norm, dropout 0.1) |
+| **Agent / orchestrator** | [opencode](https://github.com/sstcloud/opencode) + DeepSeek API |
+| **Compute** | HMS O2 interactive CPU nodes (4-8 cores, 64 GB RAM, 12-24 hr) |
+| **Acquisition** | Weighted sum of predicted inhibition + epistemic uncertainty |
 
-## 💻 Environment Setup (HMS O2 Only)
-
-> [!IMPORTANT]
-> This pipeline is designed exclusively for the HMS O2 cluster. Local execution is not supported.
+## Environment Setup
 
 ### Prerequisites
-1.  Access to HMS O2.
-2.  Conda environment configured with Chemprop and vLLM.
+- Access to HMS O2 cluster.
+- Conda environment with PyTorch, RDKit, scikit-learn, pandas, numpy.
+- [opencode](https://github.com/sstcloud/opencode) installed and configured with a DeepSeek API key.
 
 ### Activation
-On a login node, activate the environment:
+On an O2 login node, request an interactive compute node:
 ```bash
-conda activate /home/ars3983/miniforge/envs/al-agent
+srun --pty -c 8 --mem 64G -t 0-12:00 -p interactive /bin/bash
 ```
 
-## ⚡ Quick Start
+Then activate the environment:
+```bash
+source /home/ars3983/miniforge/bin/activate al-agent
+```
 
-Follow these steps to launch the autonomous optimization loop:
+## Quick Start
 
-1.  **Activate the environment** (see above).
-2.  **Start the vLLM server**:
-    ```bash
-    bash start_vllm.sh
-    ```
-    *Wait for the server to report "Uvicorn running on http://0.0.0.0:8000".*
-3.  **Start Claude Code** (in a new terminal/screen session):
-    ```bash
-    bash run_claude.sh
-    ```
-4.  **Launch the Active Learning Loop**:
-    In the Claude Code interface, issue a command like:
-    > "Run active learning optimization on the Chemprop dataset in data/"
+### 1. Launch the autonomous research loop
+From the project root on an O2 compute node, start opencode:
+```bash
+opencode
+```
 
-## 📂 Project Structure
+### 2. Issue the research directive
+Paste the contents of `program.md` into opencode. The agent will:
+- Read the current codebase (`al_optimizer.py`, `code/minimol_ffn.py`)
+- Propose a run tag and modify `al_optimizer.py` with a candidate selection strategy
+- Run `python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv`
+- Extract metrics (AUROC, AUPRC, hit rate, novelty, diversity) from the output
+- Log results to `results.tsv`
+- Iterate, adapting the acquisition function based on prior results
 
--   `data/`: Contains `train_df.csv` and `test_df.csv`.
--   `slurm_utils.py`: Utilities for submitting and monitoring SLURM jobs.
--   `al_optimizer.py`: The main active learning loop logic.
--   `start_vllm.sh`: Configuration for the local inference server.
--   `run_claude.sh`: Orchestration script for the agent.
+### 3. Manual single iteration (without the agent)
+```bash
+python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv
+```
 
-## 🧪 Active Learning Strategy
+## Project Structure
 
-The agent autonomously explores acquisition functions to maximize the **AUROC on a held-out test set**. Other metrics of interest (Hit Rate, Diversity) can also be tracked.
+```
+.
+├── al_optimizer.py       # Active learning loop: training, prediction, acquisition, metrics
+├── minimol.py            # MiniMol encoder (Morgan fingerprint → 512-dim vector)
+├── program.md            # Autonomous agent instructions (fed to opencode)
+├── code/
+│   ├── minimol_ffn.py    # FFN model definition + trainer (read-only, fixed implementation)
+│   └── minimol_ffn.sh    # Standalone training script
+├── data/
+│   ├── train_df.csv      # Labeled training set (SMILES, Y)
+│   ├── pool_df.csv       # Unlabeled candidate pool (SMILES, Y — labels hidden from agent)
+│   └── test_df.csv       # Held-out test set (SMILES, Y)
+├── skills/
+│   └── chemprop-al-optimizer.md   # Alternative skill-based agent definition
+├── results.tsv           # Experiment log (commit, test_auroc, hit_rate, status, description)
+├── notebooks/
+│   └── create_splits.ipynb
+└── docs/
+```
+
+## Active Learning Strategy
 
 ### Problem Setup
--   **Context**: 100,000 molecule unlabeled pool.
--   **Execution**: 10 sequential runs of selecting 10,000 molecules each.
--   **Constraints**: No label leakage. labels from the pool are only revealed *after* selection to augment the training set.
+- **Pool**: ~100,000 unlabeled molecules.
+- **Budget**: 10 iterations, selecting 1,000 molecules per iteration.
+- **Evaluation**: AUROC / AUPRC on a fixed held-out test set.
+- **Constraint**: No label leakage — pool labels are only revealed after a molecule is selected.
 
-### Prioritization Factors
-The agent can experiment with various weights for:
--   **Inhibition**: Predicted activity.
--   **Uncertainty**: Model confidence.
--   **Diversity/Novelty**: Chemical space coverage and scaffold uniqueness.
--   **Other Metrics**: Any user-defined parameters of interest.
+### Acquisition Function
+The agent can tune weights for:
+- **Inhibition** — predicted probability of activity.
+- **Uncertainty** — standard deviation across the 3-member ensemble.
+- **Diversity** — internal chemical diversity of the selected batch (Tanimoto distance).
+- **Novelty** — dissimilarity to already-labeled training molecules.
+
+Default: `score = 1.0 × inhibition + 1.0 × uncertainty`
+
+### Agent Autonomy
+The opencode + DeepSeek agent operates on its own initiative:
+- Modifies acquisition weights and selection size in `al_optimizer.py`.
+- Commits each change with a descriptive message before running.
+- Reads `al_run.log` to extract metrics and updates `results.tsv`.
+- Decides next strategy based on trend analysis across iterations.
+- All experimental history is preserved in git — no `git reset`.
 
 ---
-*Developed for the Farhat Lab, HMS.*
+*Developed for the Farhat Lab, HMS DBMI.*

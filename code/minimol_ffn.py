@@ -33,31 +33,34 @@ class CachedEncoder:
                 print(f"Warning: failed to load cache: {e}")
                 self.cache = {}
 
-    def encode(self, smiles_list: List[str], chunk_size: int = 256) -> torch.Tensor:
+    def encode(self, smiles_list: List[str], chunk_size: int = 50000) -> torch.Tensor:
         missing = [s for s in smiles_list if s not in self.cache]
 
-        for i in range(0, len(missing), chunk_size):
-            chunk = missing[i:i + chunk_size]
-            try:
+        if missing:
+            n = len(missing)
+            for i in range(0, n, chunk_size):
+                chunk = missing[i:i + chunk_size]
+                print(f"  Encoding {i + len(chunk):,} / {n:,} fingerprints...", flush=True)
                 embs = self.encoder(chunk)
                 for s, e in zip(chunk, embs):
                     self.cache[s] = e.detach().cpu()
-            except Exception:
-                for s in chunk:
-                    try:
-                        self.cache[s] = self.encoder([s])[0].detach().cpu()
-                    except Exception:
-                        self.cache[s] = torch.zeros(512)
 
-        if missing:
-            os.makedirs(os.path.dirname(self.cache_file) or ".", exist_ok=True)
-            try:
-                with open(self.cache_file, "wb") as f:
-                    pickle.dump(self.cache, f)
-            except Exception as e:
-                print(f"Warning: failed to save cache: {e}")
+        # Avoid giant torch.stack — batch them too
+        if len(smiles_list) <= chunk_size:
+            return torch.stack([torch.as_tensor(self.cache[s]) for s in smiles_list], dim=0)
+        result = []
+        for i in range(0, len(smiles_list), chunk_size):
+            chunk = smiles_list[i:i + chunk_size]
+            result.append(torch.stack([torch.as_tensor(self.cache[s]) for s in chunk], dim=0))
+        return torch.cat(result, dim=0)
 
-        return torch.stack([torch.as_tensor(self.cache[s]) for s in smiles_list], dim=0)
+    def save(self):
+        os.makedirs(os.path.dirname(self.cache_file) or ".", exist_ok=True)
+        try:
+            with open(self.cache_file, "wb") as f:
+                pickle.dump(self.cache, f)
+        except Exception as e:
+            print(f"Warning: failed to save cache: {e}")
 
 
 class MinimolDataset(Dataset):
@@ -268,6 +271,7 @@ class MinimolFFNTrainer:
 
     def run(self):
         self.train()
+        self.encoder.save()
         val_metrics = self.evaluate(self.val_loader)
         test_metrics = self.evaluate(self.test_loader)
 
