@@ -1,0 +1,22 @@
+# AppleDouble files (macOS metadata on network mounts)
+._*
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Model checkpoints
+best_model.pt
+
+# Encoder cache
+cache/
+
+# Logs
+*.log
+run_logs/
+
+# Session transcripts
+session-*.md

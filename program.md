@@ -1,47 +1,49 @@
 # Active Learning Agent: Autoresearch Loop
 
-This is an autonomous active learning loop designed for Chemprop on HMS O2.
+This is an autonomous active learning loop for molecular property prediction on HMS O2, driven by an LLM agent (DeepSeek via [opencode](https://github.com/sstcloud/opencode)).
+
+## Architecture
+- **Encoder**: MiniMol (Morgan fingerprints, 2048-bit, radius 2 → 512-dim embedding).
+- **Model**: FFN ensemble (3 members, 2 hidden layers × 512 dim, batch norm, dropout 0.1).
+- **Agent**: opencode + DeepSeek API — autonomously modifies `al_optimizer.py`, runs experiments, and logs results.
+- **Compute**: O2 interactive CPU node (4-8 cores, 64 GB RAM) or GPU node via sbatch.
 
 ## Objectives
-You are an autonomous researcher. Your primary goal is to **maximize the AUROC on a held-out test set** through iterative active learning. You may also track other metrics of interest (e.g. Hit Rate, Discovery Rate) as secondary indicators.
+You are an autonomous researcher. Your primary goal is to **maximize the AUROC on a held-out test set** through iterative active learning. Track AUPRC, hit rate, novelty, and diversity as secondary indicators.
 
 ## Problem Setup
-- **Total Pool**: 100,000 unlabeled molecules.
-- **AL Budget**: 10 runs (iterations).
-- **Selection**: Select 10,000 molecules per run.
-- **Evaluation**: Use a fixed, held-out `test_df.csv` for the final AUROC metric.
+- **Total Pool**: ~100,000 unlabeled molecules.
+- **AL Budget**: 10 iterations.
+- **Selection**: Select 1,000 molecules per iteration.
+- **Evaluation**: Fixed, held-out `test_df.csv` for AUROC/AUPRC.
 
 ## Setup
-1. **Agree on a run tag**: Propose a tag (e.g. `al_mar27`).
+1. **Agree on a run tag**: Propose a tag (e.g. `al_may11`).
 2. **Create the branch**: `git checkout -b al/<tag>`
-3. **Initialize results.tsv**: Create `results.tsv` with:
+3. **Initialize results.tsv**: Ensure it has the header row:
    ```
-   commit	test_auroc	other_metric	status	description
+   commit	test_auroc	hit_rate	status	description
    ```
-4. **Environment**: Ensure `al-agent` conda env is active.
+4. **Environment**: Activate `source /home/ars3983/miniforge/bin/activate al-agent` on an O2 compute node.
 
 ## Experimentation Loop
 
 LOOP FOREVER:
 
-1. **Modify `al_optimizer.py`**: Refine candidate selection strategies or training parameters. You can choose which output metrics to view and optimize after each run (e.g. AUROC, Hit Rate, Novelty vs Train, or Internal Diversity).
-2. **Git Commit**: `git commit -am "<Descriptive message of your specific intent for this run>"`
-   - Ensure the description accurately reflects the strategy changes or parameters you are testing.
-
-
-3. **Run Iteration**: 
+1. **Read the in-scope files**: `al_optimizer.py` (modifiable acquisition function, weights, hyperparameters), `code/minimol_ffn.py` (read-only — fixed encoder + FFN model).
+2. **Modify `al_optimizer.py`**: Refine candidate selection strategies (acquisition weights, selection size, ensemble size, training hyperparameters). Adjust based on trends from prior iterations.
+3. **Git Commit**: `git commit -am "<Descriptive message of your specific intent for this run>"`
+4. **Run Iteration**:
    ```bash
    python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv > al_run.log 2>&1
    ```
-4. **Extract Metrics**: 
-   - `test_auroc` and other metrics from `al_run.log`.
-5. **Log Results**: Update `results.tsv`.
-6. **Decision**:
-   - Always **KEEP** all runs (do not perform `git reset`). 
-   - Each run is a valuable data point for your optimization history.
-   - If performance drops: Analyze why, adjust strategy, and commit a new experiment.
-   - If script crashes: Fix the bug, commit the fix, and retry.
-
+5. **Extract Metrics**: Parse `test_auroc`, `test_auprc`, `hit_rate`, `novelty`, `diversity` from `al_run.log`.
+6. **Log Results**: Append a row to `results.tsv` with the commit hash, metrics, status, and a brief description.
+7. **Decision**:
+   - Always **KEEP** all runs (do not `git reset`). Each run is a data point.
+   - If performance drops: analyze why, adjust strategy, and commit a new experiment.
+   - If script crashes: fix the bug, commit the fix, and retry.
 
 ## Constraints
-- **No Label Leakage**: Do NOT use the labels in the pool for selection. Labels should only be revealed when a molecule is selected and moved to the training set.
+- **No Label Leakage**: Do NOT use pool labels for selection. Labels are only revealed when a molecule is selected and moved to the training set.
+- **Read-only model**: `code/minimol_ffn.py` is fixed — only modify `al_optimizer.py`.
