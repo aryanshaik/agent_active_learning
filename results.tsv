@@ -3,3 +3,4 @@ commit	iteration	test_auroc	hit_rate	status	description
 ba244f7	1	0.600550	0.000195	completed	Pure uncertainty (W_INHIBITION=0, W_UNCERTAINTY=1), ensemble=5, epochs=50, +state persistence. Selected 103 pos (10.3%), novelty=0.412, diversity=0.845, test_auprc=0.026
 a8d834e	2	0.610984	0.000102	completed	Hybrid acquisition (W_INHIBITION=0.3, W_UNCERTAINTY=1), enriched train (186→257 pos), selected 71 pos (7.1%), novelty=0.406, diversity=0.839, test_auprc=0.031
 4836acc	3	0.613403	0.000306	completed	Hybrid acquisition (W_INHIBITION=0.5, W_UNCERTAINTY=1), enriched train (257→300 pos), selected 43 pos (4.3%), novelty=0.411, diversity=0.850, test_auprc=0.031
+8bfe746	4	0.628865	0.000130	completed	Hybrid acquisition (W_INHIBITION=0.7, W_UNCERTAINTY=1), epochs=30, enriched train (300→332 pos), selected 32 pos (3.2%), novelty=0.401, diversity=0.849, test_auprc=0.035
