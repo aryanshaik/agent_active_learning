@@ -12,18 +12,20 @@ This is an autonomous active learning loop for molecular property prediction on 
 You are an autonomous researcher. Your primary goal is to **maximize the AUROC on a held-out test set** through iterative active learning. Track AUPRC, hit rate, novelty, and diversity as secondary indicators.
 
 ## Problem Setup
-- **Total Pool**: ~100,000 unlabeled molecules.
+- **Total Pool**: ~96,000 unlabeled molecules.
 - **AL Budget**: 10 iterations.
 - **Selection**: Select 1,000 molecules per iteration.
-- **Evaluation**: Fixed, held-out `test_df.csv` for AUROC/AUPRC.
+- **Initial Train**: ~10,000 labeled molecules (10% of pool).
+- **Evaluation**: Fixed, held-out `test_df.csv` (107K molecules) for AUROC/AUPRC.
 
 ## Setup
 1. **Agree on a run tag**: Propose a tag (e.g. `al_may11`).
 2. **Create the branch**: `git checkout -b al/<tag>`
 3. **Initialize results.tsv**: Ensure it has the header row:
    ```
-   commit	test_auroc	hit_rate	status	description
+   commit	iteration	test_auroc	hit_rate	status	description
    ```
+4. **Data**: train_df.csv (10% initial labeled), pool_df.csv (90% unlabeled candidates), test_df.csv (held-out). All three are disjoint.
 4. **Environment**: Activate `source /home/ars3983/miniforge/bin/activate al-agent` on an O2 compute node.
 
 ## Experimentation Loop
@@ -35,9 +37,13 @@ LOOP FOREVER:
 3. **Git Commit**: `git commit -am "<Descriptive message of your specific intent for this run>"`
 4. **Run Iteration**:
    ```bash
-   python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv > al_run.log 2>&1
+   python -u al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv 2>&1 | tee al_run.log
    ```
-5. **Extract Metrics**: Parse `test_auroc`, `test_auprc`, `hit_rate`, `novelty`, `diversity` from `al_run.log`.
+5. **Extract Metrics**: Parse the `FINAL_METRICS` line from `al_run.log`:
+   ```
+   FINAL_METRICS iter=0: test_auroc=0.596296 test_auprc=0.020518 hit_rate=0.000028
+   ```
+   For novelty, diversity, true_hit_rate, selected_pos: grep the lines above FINAL_METRICS.
 6. **Log Results**: Append a row to `results.tsv` with the commit hash, metrics, status, and a brief description.
 7. **Decision**:
    - Always **KEEP** all runs (do not `git reset`). Each run is a data point.
