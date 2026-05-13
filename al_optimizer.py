@@ -19,13 +19,13 @@ CachedEncoder = mffn.CachedEncoder
 
 from minimol import Minimol
 
-W_INHIBITION = 1.0
+W_INHIBITION = 0.0
 W_UNCERTAINTY = 1.0
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
 
-ENSEMBLE_SIZE = 3
-EPOCHS = 30
+ENSEMBLE_SIZE = 5
+EPOCHS = 50
 HIDDEN_DIM = 512
 NUM_LAYERS = 2
 DROPOUT = 0.1
@@ -109,6 +109,7 @@ def compute_test_metrics(models, test_df, cache_file):
     y_prob = member_probs.mean(axis=-1)
 
     from sklearn.metrics import roc_auc_score, average_precision_score
+
     if len(np.unique(y_true)) == 2:
         auroc = float(roc_auc_score(y_true, y_prob))
         auprc = float(average_precision_score(y_true, y_prob))
@@ -123,6 +124,7 @@ def compute_test_metrics(models, test_df, cache_file):
 def compute_novelty(selected_smiles, train_smiles):
     from rdkit import Chem, DataStructs
     from rdkit.Chem import AllChem
+
     fps_train = []
     for s in train_smiles:
         mol = Chem.MolFromSmiles(s)
@@ -143,6 +145,7 @@ def compute_novelty(selected_smiles, train_smiles):
 def compute_diversity(smiles_list):
     from rdkit import Chem, DataStructs
     from rdkit.Chem import AllChem
+
     fps = []
     for s in smiles_list:
         mol = Chem.MolFromSmiles(s)
@@ -152,7 +155,7 @@ def compute_diversity(smiles_list):
         return 0.0
     sims = []
     for i in range(len(fps)):
-        sims.extend(DataStructs.BulkTanimotoSimilarity(fps[i], fps[i+1:]))
+        sims.extend(DataStructs.BulkTanimotoSimilarity(fps[i], fps[i + 1 :]))
     return 1.0 - (float(np.mean(sims)) if sims else 0.0)
 
 
@@ -175,15 +178,17 @@ def main():
     print(f"Train: {len(train_df)} | Pool: {len(pool_df)} | Test: {len(test_df)}")
 
     for iteration in range(args.iters):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  Iteration {iteration}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"  Train size: {len(train_df)} (pos={train_df.Y.sum()})")
         print(f"  Pool size:  {len(pool_df)}")
 
         train_inner = train_df.sample(frac=1 - VALIDATION_FRAC, random_state=42)
         train_smiles_set = set(train_inner["SMILES"])
-        val_df = train_df[~train_df["SMILES"].isin(train_smiles_set)].reset_index(drop=True)
+        val_df = train_df[~train_df["SMILES"].isin(train_smiles_set)].reset_index(
+            drop=True
+        )
         train_inner = train_inner.reset_index(drop=True)
 
         cache_file = os.path.join(args.cache_dir, f"iter{iteration}")
@@ -206,7 +211,9 @@ def main():
         novelty = compute_novelty(selected_smiles, train_df["SMILES"].tolist())
         diversity = compute_diversity(selected_smiles)
 
-        selected_with_labels = pool_df_orig[pool_df_orig["SMILES"].isin(selected_smiles)].drop_duplicates("SMILES")
+        selected_with_labels = pool_df_orig[
+            pool_df_orig["SMILES"].isin(selected_smiles)
+        ].drop_duplicates("SMILES")
 
         test_metrics = compute_test_metrics(models, test_df, cache_file)
         auroc = test_metrics["auroc"]
@@ -216,7 +223,9 @@ def main():
         selected_pos = int(selected_with_labels["Y"].sum())
 
         train_df = pd.concat([train_df, selected_with_labels], ignore_index=True)
-        pool_df = pool_df_orig[~pool_df_orig["SMILES"].isin(train_df["SMILES"])].reset_index(drop=True)
+        pool_df = pool_df_orig[
+            ~pool_df_orig["SMILES"].isin(train_df["SMILES"])
+        ].reset_index(drop=True)
 
         print(f"\n  test_auroc:     {auroc:.6f}")
         print(f"  test_auprc:     {auprc:.6f}")
@@ -229,7 +238,9 @@ def main():
         print(f"  pool_size:      {len(pool_df)}")
         print(f"  selected:       {len(selected)}")
         print(f"  iteration:      {iteration}")
-        print(f"\n  FINAL_METRICS iter={iteration}: test_auroc={auroc:.6f} test_auprc={auprc:.6f} hit_rate={hit_rate:.6f}")
+        print(
+            f"\n  FINAL_METRICS iter={iteration}: test_auroc={auroc:.6f} test_auprc={auprc:.6f} hit_rate={hit_rate:.6f}"
+        )
 
 
 if __name__ == "__main__":
