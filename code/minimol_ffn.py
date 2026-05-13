@@ -43,7 +43,7 @@ class CachedEncoder:
                 print(f"  Encoding {i + len(chunk):,} / {n:,} fingerprints...", flush=True)
                 embs = self.encoder(chunk)
                 for s, e in zip(chunk, embs):
-                    self.cache[s] = e.detach().cpu()
+                    self.cache[s] = e.detach().cpu().clone()
 
         # Avoid giant torch.stack — batch them too
         if len(smiles_list) <= chunk_size:
