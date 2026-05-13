@@ -271,9 +271,9 @@ class MinimolFFNTrainer:
 
     def run(self):
         self.train()
-        self.encoder.save()
         val_metrics = self.evaluate(self.val_loader)
         test_metrics = self.evaluate(self.test_loader)
+        self.encoder.save()
 
         print("Validation metrics:", val_metrics)
         print("Test metrics:", test_metrics)
