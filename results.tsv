@@ -6,3 +6,4 @@ a8d834e	2	0.610984	0.000102	completed	Hybrid acquisition (W_INHIBITION=0.3, W_UN
 8bfe746	4	0.628865	0.000130	completed	Hybrid acquisition (W_INHIBITION=0.7, W_UNCERTAINTY=1), epochs=30, enriched train (300→332 pos), selected 32 pos (3.2%), novelty=0.401, diversity=0.849, test_auprc=0.035
 0beeb0e	5	0.612487	0.000223	completed	Same config (W_INH=0.7), epoch=30. Regression (pool harder). Selected 28 pos (2.8%), novelty=0.392, diversity=0.851, test_auprc=0.034
 035dc16	6	0.628112	0.000186	completed	Pure uncertainty (W_INH=0, W_UNC=1), recovery from regression. Selected 21 pos (2.1%), novelty=0.382, diversity=0.838, test_auprc=0.039 (best)
+78789a1	7	0.639961	0.000111	completed	Hybrid (W_INH=0.5, W_UNC=1), best result! Selected 18 pos (1.8%), novelty=0.378, diversity=0.856, test_auprc=0.041 (best)
