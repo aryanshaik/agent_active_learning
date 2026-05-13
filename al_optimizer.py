@@ -19,13 +19,13 @@ CachedEncoder = mffn.CachedEncoder
 
 from minimol import Minimol
 
-W_INHIBITION = 0.2
+W_INHIBITION = 0.0
 W_UNCERTAINTY = 1.0
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
 
 ENSEMBLE_SIZE = 5
-EPOCHS = 25
+EPOCHS = 50
 HIDDEN_DIM = 512
 NUM_LAYERS = 2
 DROPOUT = 0.1
@@ -241,6 +241,10 @@ def main():
         print(
             f"\n  FINAL_METRICS iter={iteration}: test_auroc={auroc:.6f} test_auprc={auprc:.6f} hit_rate={hit_rate:.6f}"
         )
+
+        train_df.to_csv(args.train, index=False)
+        pool_df.to_csv(args.pool, index=False)
+        print(f"  Saved updated train ({len(train_df)}) and pool ({len(pool_df)})")
 
 
 if __name__ == "__main__":
