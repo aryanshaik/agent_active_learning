@@ -9,3 +9,4 @@ a8d834e	2	0.610984	0.000102	completed	Hybrid acquisition (W_INHIBITION=0.3, W_UN
 78789a1	7	0.639961	0.000111	completed	Hybrid (W_INH=0.5, W_UNC=1), best result! Selected 18 pos (1.8%), novelty=0.378, diversity=0.856, test_auprc=0.041 (best)
 d1a30a9	8	0.656435	0.000511	completed	Hybrid (W_INH=0.5, W_UNC=1), new best! Selected 19 pos (1.9%), novelty=0.392, diversity=0.851, test_auprc=0.040
 4609261	9	0.665269	0.000316	completed	Hybrid (W_INH=0.5, W_UNC=1), new best! Selected 26 pos (2.6%), novelty=0.368, diversity=0.846, test_auprc=0.045 (best)
+a3bb0fd	10	0.666180	0.000139	completed	Hybrid (W_INH=0.5, W_UNC=1), FINAL. Selected 17 pos (1.7%), novelty=0.363, diversity=0.856, test_auprc=0.041
