@@ -1,113 +1,108 @@
-# MiniMol Active Learning Agent
+# Agent-Guided Active Learning for Antibiotic Discovery
 
-An autonomous active learning pipeline for molecular property prediction, designed for the **HMS O2** cluster. An LLM agent (DeepSeek via [opencode](https://github.com/sstcloud/opencode)) iteratively refines candidate selection strategies, trains an ensemble of MiniMol-based feedforward networks, and selects molecules from an unlabeled pool for labeling.
+An autonomous active learning pipeline where an LLM agent (DeepSeek via [opencode](https://github.com/sstcloud/opencode)) iteratively designs and executes molecular selection strategies to maximize antibiotic discovery from large chemical libraries.
 
 ## Overview
 
-The Active Learning Agent automates molecular hit discovery through an iterative loop:
-
-1. **Train** a MiniMol + FFN ensemble on the current labeled dataset.
-2. **Predict** activity and uncertainty on a pool of unlabeled candidates.
-3. **Select** the most informative candidates using a multi-objective acquisition function (inhibition, uncertainty, novelty, diversity).
-4. **Augment** the training set with newly labeled molecules (labels revealed only after selection).
-5. **Iterate** until the discovery goals or labeling budget are met.
+1. **Train** a MiniMol + FFN ensemble on the current labeled dataset
+2. **Predict** activity and uncertainty on a pool of unlabeled candidates
+3. **Select** the most informative candidates using a multi-objective acquisition function (inhibition, uncertainty, diversity)
+4. **Augment** the training set with newly labeled molecules
+5. **Iterate** — the LLM agent adapts the acquisition strategy based on results
 
 ## Architecture
 
 | Component | Implementation |
 |-----------|---------------|
-| **Molecular encoder** | MiniMol — Morgan fingerprints (2048-bit, radius 2) |
-| **Predictive model** | FFN ensemble (3 members, 2 hidden layers × 512 dim, batch norm, dropout 0.1) |
-| **Agent / orchestrator** | [opencode](https://github.com/sstcloud/opencode) + DeepSeek API |
-| **Compute** | HMS O2 interactive CPU nodes (4-8 cores, 64 GB RAM, 12-24 hr) |
-| **Acquisition** | Weighted sum of predicted inhibition + epistemic uncertainty |
+| Molecular encoder | MiniMol — Morgan fingerprints (2048-bit, radius 2 → 512-dim) |
+| Predictive model | FFN ensemble (3 members, 2×512 hidden, batch norm, dropout 0.1) |
+| Agent / orchestrator | [opencode](https://github.com/sstcloud/opencode) + DeepSeek API |
+| Acquisition | Weighted sum: inhibition probability + ensemble uncertainty |
 
-## Environment Setup
+## Results
+
+A 10-iteration campaign (May 2026) on M. tuberculosis HTS data (~107K compounds):
+
+| Iteration | test_auroc | Strategy |
+|-----------|-----------|----------|
+| 0 (baseline) | 0.596 | W_INH=1.0, W_UNC=1.0 |
+| 4 | 0.629 | W_INH=0.7 |
+| 7 | 0.640 | W_INH=0.5 |
+| 10 (final) | **0.666** | W_INH=0.5, W_UNC=1.0 |
+
+The agent autonomously explored exploitation vs. exploration tradeoffs, recovered from regression, and converged on a hybrid strategy (W_INH=0.5, W_UNC=1.0). Full results in [`results.tsv`](results.tsv) and the [`al/may13`](https://github.com/aryanshaik/agent_active_learning/tree/al/may13) branch.
+
+## Setup
 
 ### Prerequisites
-- Access to HMS O2 cluster.
-- Conda environment with PyTorch, RDKit, scikit-learn, pandas, numpy.
-- [opencode](https://github.com/sstcloud/opencode) installed and configured with a DeepSeek API key.
+- HMS O2 cluster access
+- Conda environment with PyTorch, RDKit, scikit-learn, pandas, numpy
+- [opencode](https://github.com/sstcloud/opencode) with DeepSeek API key
+- Git SSH key configured for GitHub
 
-### Activation
-On an O2 login node, request an interactive compute node:
+### Environment
 ```bash
-srun --pty -c 8 --mem 64G -t 0-12:00 -p interactive /bin/bash
+# Create and activate conda environment
+conda create -n al-agent python=3.11
+conda activate al-agent
+pip install -r requirements.txt
 ```
 
-Then activate the environment:
+### Launch
 ```bash
+# On O2: request compute node
+srun -p interactive -c 10 --mem 64G --time 12:00:00 --pty bash
+
+# Start persistent session
+tmux new -s al-agent
+
+# Setup
 source /home/ars3983/miniforge/bin/activate al-agent
-```
+cd /n/data1/hms/dbmi/farhat/aryan/AL/agent_active_learning
 
-## Quick Start
-
-### 1. Launch the autonomous research loop
-From the project root on an O2 compute node, start opencode:
-```bash
+# Launch the agent
 opencode
+# Paste program.md as the research directive
 ```
 
-### 2. Issue the research directive
-Paste the contents of `program.md` into opencode. The agent will:
-- Read the current codebase (`al_optimizer.py`, `code/minimol_ffn.py`)
-- Propose a run tag and modify `al_optimizer.py` with a candidate selection strategy
-- Run `python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv`
-- Extract metrics (AUROC, AUPRC, hit rate, novelty, diversity) from the output
-- Log results to `results.tsv`
-- Iterate, adapting the acquisition function based on prior results
-
-### 3. Manual single iteration (without the agent)
+### Manual run (without agent)
 ```bash
-python al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv
+python -u al_optimizer.py --iters 1 --train data/train_df.csv --pool data/pool_df.csv --test data/test_df.csv 2>&1 | tee al_run.log
 ```
 
 ## Project Structure
 
 ```
 .
-├── al_optimizer.py       # Active learning loop: training, prediction, acquisition, metrics
-├── minimol.py            # MiniMol encoder (Morgan fingerprint → 512-dim vector)
-├── program.md            # Autonomous agent instructions (fed to opencode)
+├── al_optimizer.py       # Active learning loop (modifiable by agent)
+├── minimol.py            # MiniMol encoder (Morgan fingerprint → 512-dim)
+├── program.md            # Agent instructions (fed to opencode)
 ├── code/
-│   ├── minimol_ffn.py    # FFN model definition + trainer (read-only, fixed implementation)
-│   └── minimol_ffn.sh    # Standalone training script
+│   └── minimol_ffn.py    # FFN model + trainer (read-only)
 ├── data/
-│   ├── train_df.csv      # Labeled training set (SMILES, Y)
-│   ├── pool_df.csv       # Unlabeled candidate pool (SMILES, Y — labels hidden from agent)
-│   └── test_df.csv       # Held-out test set (SMILES, Y)
-├── skills/
-│   └── chemprop-al-optimizer.md   # Alternative skill-based agent definition
-├── results.tsv           # Experiment log (commit, test_auroc, hit_rate, status, description)
-├── notebooks/
-│   └── create_splits.ipynb
-└── docs/
+│   ├── train_df.csv      # Initial labeled set (~10K SMILES)
+│   ├── pool_df.csv       # Unlabeled candidate pool (~97K SMILES)
+│   └── test_df.csv       # Held-out test set (~108K SMILES)
+├── results.tsv           # Experiment log
+├── requirements.txt      # Python dependencies
+└── notebooks/
+    └── create_splits.ipynb
 ```
 
-## Active Learning Strategy
+## Agent Autonomy
 
-### Problem Setup
-- **Pool**: ~100,000 unlabeled molecules.
-- **Budget**: 10 iterations, selecting 1,000 molecules per iteration.
-- **Evaluation**: AUROC / AUPRC on a fixed held-out test set.
-- **Constraint**: No label leakage — pool labels are only revealed after a molecule is selected.
-
-### Acquisition Function
-The agent can tune weights for:
-- **Inhibition** — predicted probability of activity.
-- **Uncertainty** — standard deviation across the 3-member ensemble.
-- **Diversity** — internal chemical diversity of the selected batch (Tanimoto distance).
-- **Novelty** — dissimilarity to already-labeled training molecules.
-
-Default: `score = 1.0 × inhibition + 1.0 × uncertainty`
-
-### Agent Autonomy
 The opencode + DeepSeek agent operates on its own initiative:
-- Modifies acquisition weights and selection size in `al_optimizer.py`.
-- Commits each change with a descriptive message before running.
-- Reads `al_run.log` to extract metrics and updates `results.tsv`.
-- Decides next strategy based on trend analysis across iterations.
-- All experimental history is preserved in git — no `git reset`.
+- Modifies acquisition weights, ensemble size, and training hyperparameters in `al_optimizer.py`
+- Commits each change before running
+- Runs the pipeline, parses metrics from `FINAL_METRICS` in `al_run.log`
+- Logs results to `results.tsv`
+- Adapts strategy based on trend analysis
+- All history preserved in git — no `git reset`
+
+## Constraints
+- No label leakage — pool labels hidden during selection
+- `code/minimol_ffn.py` is read-only; only `al_optimizer.py` is modified
+- Every run is a data point — keep all commits
 
 ---
-*Developed for the Farhat Lab, HMS DBMI.*
+*Farhat Lab, HMS DBMI*
