@@ -1,2 +1,3 @@
 commit	iteration	test_auroc	hit_rate	status	description
 1a8d464	0	0.596296	0.000028	baseline	Initial run: default weights W_INHIBITION=1.0 W_UNCERTAINTY=1.0, 3-member FFN ensemble, 10% initial labeled data (65 pos), 1000 selected, 74 true hits (7.4%), novelty=0.42, diversity=0.85
+ba244f7	1	0.600550	0.000195	completed	Pure uncertainty (W_INHIBITION=0, W_UNCERTAINTY=1), ensemble=5, epochs=50, +state persistence. Selected 103 pos (10.3%), novelty=0.412, diversity=0.845, test_auprc=0.026
