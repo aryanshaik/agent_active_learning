@@ -3,6 +3,7 @@ import sys
 import json
 import argparse
 import time
+import hashlib
 import importlib.util
 
 import numpy as np
@@ -21,11 +22,14 @@ from minimol import Minimol
 
 W_INHIBITION = 1.0
 W_UNCERTAINTY = 1.0
+W_NOVELTY = 2.0
+W_DIVERSITY = 0.5
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
+BATCH_DIVERSE = True
 
 ENSEMBLE_SIZE = 3
-EPOCHS = 30
+EPOCHS = 75
 HIDDEN_DIM = 512
 NUM_LAYERS = 2
 DROPOUT = 0.1
@@ -81,16 +85,92 @@ def predict_ensemble(models, smiles_list, encoder):
     return mean_probs, std_probs, all_probs
 
 
-def acquisition_score(mean_probs, std_probs):
-    return W_INHIBITION * mean_probs + W_UNCERTAINTY * std_probs
+def compute_novelty_scores(smiles_list, train_smiles):
+    from rdkit import Chem, DataStructs
+    from rdkit.Chem import AllChem
+
+    fps_train = []
+    for s in train_smiles:
+        mol = Chem.MolFromSmiles(s)
+        if mol:
+            fps_train.append(AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048))
+    if not fps_train:
+        return np.zeros(len(smiles_list))
+    scores = []
+    for s in smiles_list:
+        mol = Chem.MolFromSmiles(s)
+        if mol:
+            fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048)
+            sims = DataStructs.BulkTanimotoSimilarity(fp, fps_train)
+            scores.append(1.0 - max(sims))
+        else:
+            scores.append(0.0)
+    return np.array(scores)
 
 
-def select_molecules(pool_df, mean_probs, std_probs, selection_size=SELECTION_SIZE):
-    scores = acquisition_score(mean_probs, std_probs)
+def acquisition_score(mean_probs, std_probs, novelty_scores=None):
+    score = W_INHIBITION * mean_probs + W_UNCERTAINTY * std_probs
+    if novelty_scores is not None:
+        score += W_NOVELTY * novelty_scores
+    return score
+
+
+def select_molecules(
+    pool_df, mean_probs, std_probs, train_smiles, selection_size=SELECTION_SIZE
+):
+    from rdkit import Chem, DataStructs
+    from rdkit.Chem import AllChem
+
+    novelty_scores = compute_novelty_scores(pool_df["SMILES"].tolist(), train_smiles)
+    scores = acquisition_score(mean_probs, std_probs, novelty_scores)
+
     df = pool_df.copy()
     df["_score"] = scores
     df = df.sort_values("_score", ascending=False)
-    return df.head(selection_size).drop(columns=["_score"])
+
+    if not BATCH_DIVERSE or selection_size >= len(df):
+        return df.head(selection_size).drop(columns=["_score"])
+
+    pool_smiles = df["SMILES"].tolist()
+    fps = []
+    for s in pool_smiles:
+        mol = Chem.MolFromSmiles(s)
+        fps.append(
+            AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048) if mol else None
+        )
+
+    scores_arr = df["_score"].values
+    top_n = min(5000, len(df))
+    candidate_indices = list(range(top_n))
+    selected = []
+    used_mask = [False] * top_n
+
+    for _ in range(min(selection_size, top_n)):
+        best_adj = -float("inf")
+        best_idx = -1
+        for ci in candidate_indices:
+            if used_mask[ci]:
+                continue
+            if fps[ci] is None:
+                continue
+            penalty = 0.0
+            if selected:
+                sims = [
+                    DataStructs.TanimotoSimilarity(fps[ci], fps[s])
+                    for s in selected
+                    if fps[s] is not None
+                ]
+                penalty = W_DIVERSITY * (max(sims) if sims else 0.0)
+            adj = scores_arr[ci] - penalty
+            if adj > best_adj:
+                best_adj = adj
+                best_idx = ci
+        if best_idx < 0:
+            break
+        selected.append(best_idx)
+        used_mask[best_idx] = True
+
+    return df.iloc[selected].drop(columns=["_score"])
 
 
 def compute_test_metrics(models, test_df, cache_file):
@@ -109,6 +189,7 @@ def compute_test_metrics(models, test_df, cache_file):
     y_prob = member_probs.mean(axis=-1)
 
     from sklearn.metrics import roc_auc_score, average_precision_score
+
     if len(np.unique(y_true)) == 2:
         auroc = float(roc_auc_score(y_true, y_prob))
         auprc = float(average_precision_score(y_true, y_prob))
@@ -123,6 +204,7 @@ def compute_test_metrics(models, test_df, cache_file):
 def compute_novelty(selected_smiles, train_smiles):
     from rdkit import Chem, DataStructs
     from rdkit.Chem import AllChem
+
     fps_train = []
     for s in train_smiles:
         mol = Chem.MolFromSmiles(s)
@@ -143,6 +225,7 @@ def compute_novelty(selected_smiles, train_smiles):
 def compute_diversity(smiles_list):
     from rdkit import Chem, DataStructs
     from rdkit.Chem import AllChem
+
     fps = []
     for s in smiles_list:
         mol = Chem.MolFromSmiles(s)
@@ -152,7 +235,7 @@ def compute_diversity(smiles_list):
         return 0.0
     sims = []
     for i in range(len(fps)):
-        sims.extend(DataStructs.BulkTanimotoSimilarity(fps[i], fps[i+1:]))
+        sims.extend(DataStructs.BulkTanimotoSimilarity(fps[i], fps[i + 1 :]))
     return 1.0 - (float(np.mean(sims)) if sims else 0.0)
 
 
@@ -175,15 +258,17 @@ def main():
     print(f"Train: {len(train_df)} | Pool: {len(pool_df)} | Test: {len(test_df)}")
 
     for iteration in range(args.iters):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  Iteration {iteration}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"  Train size: {len(train_df)} (pos={train_df.Y.sum()})")
         print(f"  Pool size:  {len(pool_df)}")
 
         train_inner = train_df.sample(frac=1 - VALIDATION_FRAC, random_state=42)
         train_smiles_set = set(train_inner["SMILES"])
-        val_df = train_df[~train_df["SMILES"].isin(train_smiles_set)].reset_index(drop=True)
+        val_df = train_df[~train_df["SMILES"].isin(train_smiles_set)].reset_index(
+            drop=True
+        )
         train_inner = train_inner.reset_index(drop=True)
 
         cache_file = os.path.join(args.cache_dir, f"iter{iteration}")
@@ -200,13 +285,21 @@ def main():
         pred_time = time.time() - t1
         print(f"  Predict: {pred_time:.1f}s")
 
-        selected = select_molecules(pool_df, mean_probs, std_probs, SELECTION_SIZE)
+        selected = select_molecules(
+            pool_df,
+            mean_probs,
+            std_probs,
+            train_inner["SMILES"].tolist(),
+            SELECTION_SIZE,
+        )
         selected_smiles = selected["SMILES"].tolist()
 
         novelty = compute_novelty(selected_smiles, train_df["SMILES"].tolist())
         diversity = compute_diversity(selected_smiles)
 
-        selected_with_labels = pool_df_orig[pool_df_orig["SMILES"].isin(selected_smiles)].drop_duplicates("SMILES")
+        selected_with_labels = pool_df_orig[
+            pool_df_orig["SMILES"].isin(selected_smiles)
+        ].drop_duplicates("SMILES")
 
         test_metrics = compute_test_metrics(models, test_df, cache_file)
         auroc = test_metrics["auroc"]
@@ -216,7 +309,9 @@ def main():
         selected_pos = int(selected_with_labels["Y"].sum())
 
         train_df = pd.concat([train_df, selected_with_labels], ignore_index=True)
-        pool_df = pool_df_orig[~pool_df_orig["SMILES"].isin(train_df["SMILES"])].reset_index(drop=True)
+        pool_df = pool_df_orig[
+            ~pool_df_orig["SMILES"].isin(train_df["SMILES"])
+        ].reset_index(drop=True)
 
         print(f"\n  test_auroc:     {auroc:.6f}")
         print(f"  test_auprc:     {auprc:.6f}")
@@ -229,7 +324,9 @@ def main():
         print(f"  pool_size:      {len(pool_df)}")
         print(f"  selected:       {len(selected)}")
         print(f"  iteration:      {iteration}")
-        print(f"\n  FINAL_METRICS iter={iteration}: test_auroc={auroc:.6f} test_auprc={auprc:.6f} hit_rate={hit_rate:.6f}")
+        print(
+            f"\n  FINAL_METRICS iter={iteration}: test_auroc={auroc:.6f} test_auprc={auprc:.6f} hit_rate={hit_rate:.6f}"
+        )
 
 
 if __name__ == "__main__":
