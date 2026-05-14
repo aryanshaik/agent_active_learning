@@ -20,10 +20,10 @@ CachedEncoder = mffn.CachedEncoder
 
 from minimol import Minimol
 
-W_INHIBITION = 8.0
+W_INHIBITION = 3.0
 W_UNCERTAINTY = 0.0
-W_NOVELTY = 1.0
-W_DIVERSITY = 0.3
+W_NOVELTY = 2.0
+W_DIVERSITY = 0.5
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
 BATCH_DIVERSE = True
@@ -194,11 +194,23 @@ def acquisition_score(mean_probs, std_probs, novelty_scores=None):
     return score
 
 
+def compute_pool_fingerprints(smiles_list):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    fps = []
+    for s in smiles_list:
+        mol = Chem.MolFromSmiles(s)
+        fps.append(
+            AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048) if mol else None
+        )
+    return fps
+
+
 def select_molecules(
     pool_df, mean_probs, std_probs, train_smiles, selection_size=SELECTION_SIZE
 ):
-    from rdkit import Chem, DataStructs
-    from rdkit.Chem import AllChem
+    from rdkit import DataStructs
+    import numpy as np
 
     novelty_scores = compute_novelty_scores(pool_df["SMILES"].tolist(), train_smiles)
     scores = acquisition_score(mean_probs, std_probs, novelty_scores)
@@ -210,44 +222,40 @@ def select_molecules(
     if not BATCH_DIVERSE or selection_size >= len(df):
         return df.head(selection_size).drop(columns=["_score"])
 
-    pool_smiles = df["SMILES"].tolist()
-    fps = []
-    for s in pool_smiles:
-        mol = Chem.MolFromSmiles(s)
-        fps.append(
-            AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048) if mol else None
-        )
+    smiles_sorted = df["SMILES"].tolist()
+    fps = compute_pool_fingerprints(smiles_sorted)
 
     scores_arr = df["_score"].values
-    top_n = min(5000, len(df))
-    candidate_indices = list(range(top_n))
-    selected = []
-    used_mask = [False] * top_n
+    top_n = min(3000, len(df))
+    valid_indices = [i for i in range(top_n) if fps[i] is not None]
+    n_valid = len(valid_indices)
 
-    for _ in range(min(selection_size, top_n)):
+    sim_matrix = np.zeros((n_valid, n_valid), dtype=np.float32)
+    for i in range(n_valid):
+        sim_matrix[i] = DataStructs.BulkTanimotoSimilarity(
+            fps[valid_indices[i]], [fps[valid_indices[j]] for j in range(n_valid)]
+        )
+
+    selected_mask = [False] * n_valid
+    selected = []
+    remain = list(range(n_valid))
+
+    for _ in range(min(selection_size, n_valid)):
         best_adj = -float("inf")
-        best_idx = -1
-        for ci in candidate_indices:
-            if used_mask[ci]:
-                continue
-            if fps[ci] is None:
-                continue
+        best_pos = -1
+        for pos, idx in enumerate(remain):
             penalty = 0.0
             if selected:
-                sims = [
-                    DataStructs.TanimotoSimilarity(fps[ci], fps[s])
-                    for s in selected
-                    if fps[s] is not None
-                ]
-                penalty = W_DIVERSITY * (max(sims) if sims else 0.0)
-            adj = scores_arr[ci] - penalty
+                penalty = W_DIVERSITY * float(sim_matrix[idx, selected_mask].max())
+            adj = scores_arr[valid_indices[idx]] - penalty
             if adj > best_adj:
                 best_adj = adj
-                best_idx = ci
-        if best_idx < 0:
+                best_pos = pos
+        if best_pos < 0:
             break
-        selected.append(best_idx)
-        used_mask[best_idx] = True
+        sel_idx = remain.pop(best_pos)
+        selected_mask[sel_idx] = True
+        selected.append(valid_indices[sel_idx])
 
     return df.iloc[selected].drop(columns=["_score"])
 
