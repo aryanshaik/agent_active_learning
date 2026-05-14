@@ -29,14 +29,14 @@ VALIDATION_FRAC = 0.1
 BATCH_DIVERSE = True
 
 ENSEMBLE_SIZE = 3
-EPOCHS = 20
+EPOCHS = 15
 HIDDEN_DIM = 512
 NUM_LAYERS = 2
-DROPOUT = 0.3
+DROPOUT = 0.4
 BATCH_SIZE = 256
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
-POS_WEIGHT = 10.0
+POS_WEIGHT = 3.0
 
 
 def oversample_positives(df, target_ratio=0.1):
@@ -349,7 +349,7 @@ def main():
             drop=True
         )
         train_inner = train_inner.reset_index(drop=True)
-        train_inner_aug = oversample_positives(train_inner, target_ratio=0.3)
+        train_inner_aug = oversample_positives(train_inner, target_ratio=0.2)
         print(
             f"  Augmented train: {len(train_inner_aug)} (pos={train_inner_aug.Y.sum()})"
         )
