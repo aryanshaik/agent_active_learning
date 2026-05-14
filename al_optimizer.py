@@ -20,7 +20,7 @@ CachedEncoder = mffn.CachedEncoder
 
 from minimol import Minimol
 
-W_INHIBITION = 1.0
+W_INHIBITION = 0.5
 W_UNCERTAINTY = 0.0
 W_NOVELTY = 2.5
 W_DIVERSITY = 0.5
