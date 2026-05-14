@@ -20,10 +20,10 @@ CachedEncoder = mffn.CachedEncoder
 
 from minimol import Minimol
 
-W_INHIBITION = 5.0
+W_INHIBITION = 8.0
 W_UNCERTAINTY = 0.0
-W_NOVELTY = 2.0
-W_DIVERSITY = 0.5
+W_NOVELTY = 1.0
+W_DIVERSITY = 0.3
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
 BATCH_DIVERSE = True
