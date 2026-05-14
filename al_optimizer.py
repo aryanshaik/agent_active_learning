@@ -20,22 +20,22 @@ CachedEncoder = mffn.CachedEncoder
 
 from minimol import Minimol
 
-W_INHIBITION = 3.0
-W_UNCERTAINTY = 1.0
-W_NOVELTY = 1.0
-W_DIVERSITY = 0.5
+W_INHIBITION = 5.0
+W_UNCERTAINTY = 0.0
+W_NOVELTY = 0.5
+W_DIVERSITY = 0.2
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
 BATCH_DIVERSE = True
 
 ENSEMBLE_SIZE = 3
-EPOCHS = 30
-HIDDEN_DIM = 512
+EPOCHS = 15
+HIDDEN_DIM = 256
 NUM_LAYERS = 2
-DROPOUT = 0.2
+DROPOUT = 0.3
 BATCH_SIZE = 256
 LR = 1e-3
-POS_WEIGHT = 5.0
+POS_WEIGHT = 10.0
 
 
 def oversample_positives(df, target_ratio=0.1):
@@ -55,25 +55,84 @@ def oversample_positives(df, target_ratio=0.1):
 
 
 def train_ensemble(train_df, val_df, test_df, cache_file, n_members=ENSEMBLE_SIZE):
+    import torch.nn.functional as F
+    from torch.utils.data import DataLoader
+    from minimol import Minimol
+
     models = []
     for i in range(n_members):
         torch.manual_seed(42 + i)
         np.random.seed(42 + i)
 
-        trainer = MinimolFFNTrainer(
-            train_df=train_df,
-            val_df=val_df,
-            test_df=test_df,
-            cache_file=cache_file,
-            batch_size=BATCH_SIZE,
-            lr=LR,
-            epochs=EPOCHS,
+        encoder_model = Minimol()
+        if torch.cuda.is_available():
+            try:
+                encoder_model = encoder_model.to("cuda")
+            except Exception:
+                pass
+        encoder = CachedEncoder(encoder_model, cache_file)
+
+        def make_loader(df, shuffle):
+            loader = DataLoader(
+                mffn.MinimolDataset(df),
+                batch_size=BATCH_SIZE,
+                shuffle=shuffle,
+                collate_fn=mffn.make_collate_fn(encoder),
+            )
+            return loader
+
+        train_loader = make_loader(train_df, shuffle=True)
+        val_loader = make_loader(val_df, shuffle=False)
+
+        model = MinimolFFNBinary(
+            input_dim=512,
             hidden_dim=HIDDEN_DIM,
             num_layers=NUM_LAYERS,
             dropout=DROPOUT,
-        )
-        trainer.run()
-        models.append(trainer.model)
+        ).to(DEVICE)
+
+        optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+        pos_weight = torch.tensor([POS_WEIGHT], device=DEVICE)
+
+        best_val_loss = float("inf")
+        for epoch in range(1, EPOCHS + 1):
+            model.train()
+            train_loss = 0.0
+            for x, y in train_loader:
+                x, y = x.to(DEVICE), y.to(DEVICE)
+                optimizer.zero_grad()
+                logits = model(x)
+                loss = F.binary_cross_entropy_with_logits(
+                    logits, y, pos_weight=pos_weight
+                )
+                loss.backward()
+                optimizer.step()
+                train_loss += loss.item() * x.size(0)
+            train_loss /= max(len(train_loader.dataset), 1)
+
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for x, y in val_loader:
+                    x, y = x.to(DEVICE), y.to(DEVICE)
+                    logits = model(x)
+                    loss = F.binary_cross_entropy_with_logits(
+                        logits, y, pos_weight=pos_weight
+                    )
+                    val_loss += loss.item() * x.size(0)
+            val_loss /= max(len(val_loader.dataset), 1)
+
+            print(
+                f"  Ens[{i}] Epoch {epoch}/{EPOCHS} | train_loss={train_loss:.4f} | val_loss={val_loss:.4f}"
+            )
+
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                torch.save(model.state_dict(), "best_model.pt")
+
+        model.load_state_dict(torch.load("best_model.pt", map_location=DEVICE))
+        encoder.save()
+        models.append(model)
     return models
 
 
@@ -287,7 +346,7 @@ def main():
             drop=True
         )
         train_inner = train_inner.reset_index(drop=True)
-        train_inner_aug = oversample_positives(train_inner, target_ratio=0.1)
+        train_inner_aug = oversample_positives(train_inner, target_ratio=0.2)
         print(
             f"  Augmented train: {len(train_inner_aug)} (pos={train_inner_aug.Y.sum()})"
         )
