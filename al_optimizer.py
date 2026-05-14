@@ -29,12 +29,13 @@ VALIDATION_FRAC = 0.1
 BATCH_DIVERSE = True
 
 ENSEMBLE_SIZE = 3
-EPOCHS = 15
-HIDDEN_DIM = 256
+EPOCHS = 20
+HIDDEN_DIM = 512
 NUM_LAYERS = 2
 DROPOUT = 0.3
 BATCH_SIZE = 256
 LR = 1e-3
+WEIGHT_DECAY = 1e-4
 POS_WEIGHT = 10.0
 
 
@@ -91,7 +92,9 @@ def train_ensemble(train_df, val_df, test_df, cache_file, n_members=ENSEMBLE_SIZ
             dropout=DROPOUT,
         ).to(DEVICE)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+        optimizer = torch.optim.Adam(
+            model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY
+        )
         pos_weight = torch.tensor([POS_WEIGHT], device=DEVICE)
 
         best_val_loss = float("inf")
@@ -346,7 +349,7 @@ def main():
             drop=True
         )
         train_inner = train_inner.reset_index(drop=True)
-        train_inner_aug = oversample_positives(train_inner, target_ratio=0.2)
+        train_inner_aug = oversample_positives(train_inner, target_ratio=0.3)
         print(
             f"  Augmented train: {len(train_inner_aug)} (pos={train_inner_aug.Y.sum()})"
         )
