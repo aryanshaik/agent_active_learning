@@ -20,21 +20,38 @@ CachedEncoder = mffn.CachedEncoder
 
 from minimol import Minimol
 
-W_INHIBITION = 1.0
+W_INHIBITION = 3.0
 W_UNCERTAINTY = 1.0
-W_NOVELTY = 2.0
+W_NOVELTY = 1.0
 W_DIVERSITY = 0.5
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
 BATCH_DIVERSE = True
 
 ENSEMBLE_SIZE = 3
-EPOCHS = 75
+EPOCHS = 30
 HIDDEN_DIM = 512
 NUM_LAYERS = 2
-DROPOUT = 0.1
+DROPOUT = 0.2
 BATCH_SIZE = 256
 LR = 1e-3
+POS_WEIGHT = 5.0
+
+
+def oversample_positives(df, target_ratio=0.1):
+    pos = df[df["Y"] == 1]
+    neg = df[df["Y"] == 0]
+    if len(pos) == 0 or len(neg) == 0:
+        return df
+    n_pos_target = int(len(neg) * target_ratio / (1 - target_ratio))
+    n_pos_target = max(n_pos_target, len(pos))
+    n_repeat = (n_pos_target // len(pos)) + 1
+    pos_oversampled = pd.concat([pos] * n_repeat, ignore_index=True).iloc[:n_pos_target]
+    return (
+        pd.concat([neg, pos_oversampled], ignore_index=True)
+        .sample(frac=1, random_state=42)
+        .reset_index(drop=True)
+    )
 
 
 def train_ensemble(train_df, val_df, test_df, cache_file, n_members=ENSEMBLE_SIZE):
@@ -270,11 +287,15 @@ def main():
             drop=True
         )
         train_inner = train_inner.reset_index(drop=True)
+        train_inner_aug = oversample_positives(train_inner, target_ratio=0.1)
+        print(
+            f"  Augmented train: {len(train_inner_aug)} (pos={train_inner_aug.Y.sum()})"
+        )
 
         cache_file = os.path.join(args.cache_dir, f"iter{iteration}")
 
         t0 = time.time()
-        models = train_ensemble(train_inner, val_df, test_df, cache_file)
+        models = train_ensemble(train_inner_aug, val_df, test_df, cache_file)
         train_time = time.time() - t0
         print(f"  Train: {train_time:.1f}s")
 
@@ -327,6 +348,10 @@ def main():
         print(
             f"\n  FINAL_METRICS iter={iteration}: test_auroc={auroc:.6f} test_auprc={auprc:.6f} hit_rate={hit_rate:.6f}"
         )
+
+    train_df.to_csv(args.train, index=False)
+    pool_df.to_csv(args.pool, index=False)
+    print(f"Saved updated train ({len(train_df)}) and pool ({len(pool_df)}) CSVs.")
 
 
 if __name__ == "__main__":
