@@ -1,0 +1,26 @@
+# Data files (large, stored on O2)
+data/*_chemprop.csv
+data/pool_df.csv
+
+# Cache
+cache/
+*.pkl
+*.pth
+
+# Run outputs
+al_chemprop_runs/
+al_run.log
+run_logs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+docs/.DS_Store
+
+# Secrets
+.env
+*.key

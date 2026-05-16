@@ -1,81 +1,165 @@
-# Chemprop Active Learning Agent
+# DMPNN Active Learning Agent
 
-An autonomous active learning pipeline for molecular optimization using Chemprop, specifically designed for the **HMS O2 (SLURM)** high-performance computing cluster. 
+An autonomous active learning pipeline for molecular property prediction, designed for the **HMS O2** cluster. An LLM agent (DeepSeek via [opencode](https://github.com/sstcloud/opencode)) iteratively refines candidate selection strategies, trains a Chemprop DMPNN ensemble, and selects molecules from an unlabeled pool.
 
-This agent orchestrates an iterative "Hypothesis → Experiment → Update" loop, leveraging LLM-guided decision-making (via Claude Code + vLLM) to intelligently select candidates for screening and augment predictive models.
+## Overview
 
-## 🚀 Overview
+The Active Learning Agent automates molecular hit discovery through an iterative loop:
 
-The Active Learning Agent automates the process of discovering potent molecular inhibitors (e.g., antibiotics). It iteratively:
-1.  **Trains** a Chemprop ensemble on the current labeled dataset.
-2.  **Predicts** activity and uncertainty for a large pool of unlabeled candidates.
-3.  **Selects** the most informative candidates using a multi-objective acquisition function (Inhibition, Diversity, Novelty, Uncertainty).
-4.  **Augments** the training set with "experimentally" labeled data (simulated or real).
-5.  **Iterates** until the discovery goals or budget are met.
+1. **Train** a Chemprop DMPNN ensemble on the current labeled dataset with Dirichlet evidential loss.
+2. **Predict** activity and uncertainty on a pool of unlabeled candidates.
+3. **Select** the most informative candidates using a multi-objective acquisition function (inhibition, uncertainty, novelty, diversity).
+4. **Augment** the training set with newly labeled molecules (labels revealed only after selection).
+5. **Iterate** until the discovery goals or labeling budget are met.
 
-## 🏗️ Architecture
+## Architecture
 
--   **Claude Code**: The primary agent controller and orchestrator.
--   **vLLM**: Local inference server running `qwen35-27b` to provide LLM capabilities without external API dependencies.
--   **Chemprop**: The core message-passing neural network (MPNN) framework for property prediction.
--   **SLURM**: Job scheduler for HMS O2, ensuring all compute-intensive tasks (training/prediction) are executed on dedicated GPU nodes.
+| Component | Implementation |
+|-----------|---------------|
+| **Molecular encoder** | DMPNN (Directed Message-Passing Neural Network, 3 layers, hidden=300) |
+| **Predictive model** | Chemprop ensemble (5-fold scaffold-balanced CV, Dirichlet head, evidential regularization 0.2) |
+| **Agent / orchestrator** | [opencode](https://github.com/sstcloud/opencode) + DeepSeek API |
+| **Compute** | HMS O2 GPU nodes (`gpu` or `gpu_quad` partition, 1 GPU, 32-64 GB RAM) |
+| **Acquisition** | Weighted sum of predicted inhibition + Dirichlet uncertainty + novelty + diversity |
+| **Uncertainty** | Evidential Dirichlet (built-in, no ensemble disagreement needed) |
 
-## 💻 Environment Setup (HMS O2 Only)
+## Two Model Options
 
-> [!IMPORTANT]
-> This pipeline is designed exclusively for the HMS O2 cluster. Local execution is not supported.
+### 1. DMPNN (Chemprop) — Recommended
+Higher accuracy, GPU-accelerated, Dirichlet uncertainty built-in.
 
-### Prerequisites
-1.  Access to HMS O2.
-2.  Conda environment configured with Chemprop and vLLM.
-
-### Activation
-On a login node, activate the environment:
 ```bash
-conda activate /home/ars3983/miniforge/envs/al-agent
+python al_optimizer_chemprop.py \
+    --train data/train_df_chemprop.csv \
+    --pool data/pool_df_chemprop.csv \
+    --test data/test_df_chemprop.csv \
+    --iters 10
 ```
 
-## ⚡ Quick Start
+### 2. MiniMol + FFN — Fast Baseline
+CPU-friendly, Morgan fingerprint-based, ensemble disagreement uncertainty.
 
-Follow these steps to launch the autonomous optimization loop:
+```bash
+python al_optimizer.py \
+    --train data/train_df.csv \
+    --pool data/pool_df.csv \
+    --test data/test_df.csv \
+    --iters 10
+```
 
-1.  **Activate the environment** (see above).
-2.  **Start the vLLM server**:
-    ```bash
-    bash start_vllm.sh
-    ```
-    *Wait for the server to report "Uvicorn running on http://0.0.0.0:8000".*
-3.  **Start Claude Code** (in a new terminal/screen session):
-    ```bash
-    bash run_claude.sh
-    ```
-4.  **Launch the Active Learning Loop**:
-    In the Claude Code interface, issue a command like:
-    > "Run active learning optimization on the Chemprop dataset in data/"
+## Environment Setup
 
-## 📂 Project Structure
+### Prerequisites
+- Access to HMS O2 cluster.
+- Conda environment `al-agent` with PyTorch, RDKit, scikit-learn, pandas, numpy.
+- The bundled Chemprop v1.7.0 code at the path set by `$CHEMPROP_DIR`.
+- [opencode](https://github.com/sstcloud/opencode) installed and configured with a DeepSeek API key.
 
--   `data/`: Contains `train_df.csv` and `test_df.csv`.
--   `slurm_utils.py`: Utilities for submitting and monitoring SLURM jobs.
--   `al_optimizer.py`: The main active learning loop logic.
--   `start_vllm.sh`: Configuration for the local inference server.
--   `run_claude.sh`: Orchestration script for the agent.
+### Activation
+On an O2 login node, activate the environment:
+```bash
+source /home/ars3983/miniforge/bin/activate al-agent
+export WANDB_MODE=disabled
+```
 
-## 🧪 Active Learning Strategy
+### GPU Node (for DMPNN training)
+```bash
+srun --pty -c 4 --mem 64G -t 0-12:00 -p gpu --gres=gpu:1 /bin/bash
+source /home/ars3983/miniforge/bin/activate al-agent
+```
 
-The agent autonomously explores acquisition functions to maximize the **AUROC on a held-out test set**. Other metrics of interest (Hit Rate, Diversity) can also be tracked.
+## Quick Start
+
+### 1. Launch the autonomous research loop (MiniMol)
+From the project root on an O2 compute node, start opencode:
+```bash
+opencode
+```
+Paste the contents of `program.md` into opencode.
+
+### 2. Launch DMPNN AL campaign
+```bash
+# Submit as SLURM job
+sbatch scripts/run_al_chemprop.sh
+
+# Or run interactively on a GPU node
+python al_optimizer_chemprop.py \
+    --train data/train_df_chemprop.csv \
+    --pool data/pool_df_chemprop.csv \
+    --test data/test_df_chemprop.csv \
+    --iters 10
+```
+
+### 3. Single training run (DMPNN)
+```bash
+sbatch scripts/train_dmpnn.sh data/train_df_chemprop.csv models/run1/
+```
+
+## Project Structure
+
+```
+.
+├── al_optimizer.py              # MiniMol+FFN active learning loop
+├── al_optimizer_chemprop.py     # DMPNN/Chemprop active learning loop (NEW)
+├── minimol.py                   # MiniMol encoder (Morgan fingerprint -> 512-dim)
+├── program.md                   # Autonomous agent instructions (MiniMol)
+├── program_chemprop.md          # Autonomous agent instructions (DMPNN)
+├── code/
+│   ├── minimol_ffn.py           # FFN model definition + trainer (read-only)
+│   └── minimol_ffn.sh           # Standalone MiniMol training script
+├── scripts/
+│   ├── train_dmpnn.sh           # SLURM GPU training script (DMPNN)
+│   ├── predict_dmpnn.sh         # SLURM GPU prediction script (DMPNN)
+│   └── run_al_chemprop.sh       # SLURM full AL campaign (DMPNN)
+├── data/
+│   ├── train_df.csv             # Labeled training set (SMILES, Y) — MiniMol
+│   ├── pool_df.csv              # Unlabeled candidate pool (SMILES, Y — hidden)
+│   ├── test_df.csv              # Held-out test set (SMILES, Y)
+│   ├── train_df_chemprop.csv    # Same, formatted for Chemprop (SMILES,Y)
+│   ├── pool_df_chemprop.csv     # Pool for Chemprop
+│   └── test_df_chemprop.csv     # Test for Chemprop
+├── skills/
+│   └── chemprop-al-optimizer.md # Alternative skill-based agent definition
+├── results.tsv                  # Experiment log
+├── notebooks/
+│   └── create_splits.ipynb
+└── docs/
+```
+
+## Active Learning Strategy
 
 ### Problem Setup
--   **Context**: 100,000 molecule unlabeled pool.
--   **Execution**: 10 sequential runs of selecting 10,000 molecules each.
--   **Constraints**: No label leakage. labels from the pool are only revealed *after* selection to augment the training set.
+- **Pool**: ~96,000 unlabeled molecules.
+- **Budget**: 10 iterations, selecting 1,000 molecules per iteration.
+- **Evaluation**: AUROC / AUPRC on a fixed held-out test set (~107K molecules).
+- **Constraint**: No label leakage — pool labels are only revealed after a molecule is selected.
 
-### Prioritization Factors
-The agent can experiment with various weights for:
--   **Inhibition**: Predicted activity.
--   **Uncertainty**: Model confidence.
--   **Diversity/Novelty**: Chemical space coverage and scaffold uniqueness.
--   **Other Metrics**: Any user-defined parameters of interest.
+### Acquisition Function
+The agent can tune weights for:
+- **Inhibition** — predicted probability of activity (from DMPNN).
+- **Uncertainty** — Dirichlet evidential uncertainty (built into Chemprop).
+- **Novelty** — dissimilarity to already-labeled training molecules (1 - max Tanimoto).
+- **Diversity** — internal chemical diversity of the selected batch (1 - mean pairwise Tanimoto).
+
+Default: `score = 0.5 * inhibition + 1.0 * uncertainty + 0.3 * novelty + 0.2 * diversity`
+
+### Agent Autonomy
+The opencode + DeepSeek agent operates on its own initiative:
+- Modifies acquisition weights and hyperparameters in `al_optimizer_chemprop.py`.
+- Commits each change with a descriptive message before running.
+- Reads `al_run.log` to extract metrics and updates `results.tsv`.
+- Decides next strategy based on trend analysis across iterations.
+- All experimental history is preserved in git — no `git reset`.
+
+### Key Differences: MiniMol vs DMPNN
+| | MiniMol+FFN | DMPNN (Chemprop) |
+|---|---|---|
+| Encoder | Morgan FP (2048-bit) | Learned graph embeddings |
+| Model | 3×FFN ensemble | 5-fold DMPNN ensemble |
+| Uncertainty | Ensemble std | Evidential Dirichlet |
+| Training time | ~2-5 min (CPU) | ~30-60 min (GPU) |
+| AUROC (baseline) | ~0.60 | ~0.70+ |
+| GPU required | No | Yes |
 
 ---
-*Developed for the Farhat Lab, HMS.*
+*Developed for the Farhat Lab, HMS DBMI.*
