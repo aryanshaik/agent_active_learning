@@ -63,6 +63,8 @@ def train_chemprop(
     epochs: int = EPOCHS,
 ) -> str:
     """Train Chemprop DMPNN via subprocess. Returns path to model directory."""
+    train_csv = os.path.abspath(train_csv)
+    save_dir = os.path.abspath(save_dir)
     os.makedirs(save_dir, exist_ok=True)
 
     cmd = [
@@ -107,8 +109,10 @@ def predict_chemprop(
     output_csv: str,
 ) -> str:
     """Run Chemprop prediction on a CSV of SMILES. Returns path to predictions CSV."""
-    checkpoints = _find_checkpoints(model_dir)
-    checkpoint_dirs = sorted(set(os.path.dirname(cp) for cp in checkpoints))
+    model_dir = os.path.abspath(model_dir)
+    smiles_csv = os.path.abspath(smiles_csv)
+    output_csv = os.path.abspath(output_csv)
+    os.makedirs(os.path.dirname(output_csv) or ".", exist_ok=True)
 
     cmd = [
         sys.executable, PREDICT_SCRIPT,
