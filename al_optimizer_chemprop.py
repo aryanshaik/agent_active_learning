@@ -85,11 +85,11 @@ def train_chemprop(
         "--quiet",
     ]
 
-    result = subprocess.run(cmd, cwd=CHEMPROP_DIR, capture_output=True, text=True)
+    # Let output flow to SLURM log — no capture to avoid pipe buffer deadlock
+    result = subprocess.run(cmd, cwd=CHEMPROP_DIR)
 
     if result.returncode != 0:
         print(f"[ERROR] Training failed (code {result.returncode})")
-        print(f"STDERR: {result.stderr[-2000:]}")
         raise RuntimeError(f"Chemprop training failed. See output above.")
 
     return save_dir
@@ -123,11 +123,11 @@ def predict_chemprop(
         "--uncertainty_method", "dirichlet",
     ]
 
-    result = subprocess.run(cmd, cwd=CHEMPROP_DIR, capture_output=True, text=True)
+    # Let output flow to SLURM log — no capture to avoid pipe buffer deadlock
+    result = subprocess.run(cmd, cwd=CHEMPROP_DIR)
 
     if result.returncode != 0:
         print(f"[ERROR] Prediction failed (code {result.returncode})")
-        print(f"STDERR: {result.stderr[-2000:]}")
         raise RuntimeError(f"Chemprop prediction failed. See output above.")
 
     return output_csv
