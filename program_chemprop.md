@@ -30,7 +30,8 @@ To set up a new experiment, work with the user to:
 - Modify `al_optimizer_chemprop.py` — this is the only file you edit. Everything is fair game:
   - Acquisition function weights (`W_INHIBITION`, `W_UNCERTAINTY`, `W_NOVELTY`, `W_DIVERSITY`) and the `acquisition_score()` function itself. You can change this however you like based on best practices for active learning. This should change after each batch as it should reflect the best practice given what you have seen so far. You can use the weighted scheme or any other selection strategy you deem fit.
   - DMPNN hyperparameters: `NUM_FOLDS`, `EPOCHS`, `BATCH_SIZE`, `HIDDEN_SIZE`, `DEPTH`.
-  - Selection size (`SELECTION_SIZE`) and strategy (greedy, diverse, or anything else). Greedy/diversity-only are very simple. You can do combinations of these or completely different strategies.
+  - Selection strategy: `BATCH_DIVERSE` (True/False) enables greedy diverse batch selection using Tanimoto dissimilarity — picks the best molecule, then penalizes similar ones before picking the next. Prevents selecting clusters of near-identical compounds.
+  - Selection size (`SELECTION_SIZE`) — 1,000 molecules/iteration is a reasonable default, but you can adjust.
   - Any other AL logic.
 
 ## What you CANNOT do

@@ -45,6 +45,7 @@ W_INHIBITION = 0.5
 W_UNCERTAINTY = 1.0
 W_NOVELTY = 0.3
 W_DIVERSITY = 0.2
+BATCH_DIVERSE = False
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
 
@@ -235,15 +236,49 @@ def select_molecules(
     uncertainty: np.ndarray,
     train_smiles: List[str],
     selection_size: int = SELECTION_SIZE,
+    diverse: bool = False,
 ) -> pd.DataFrame:
-    """Select top molecules by acquisition score."""
+    """Select molecules by acquisition score.
+
+    When diverse=True, uses greedy diverse selection: iteratively picks the
+    highest-scoring molecule, then downweights remaining candidates by their
+    Tanimoto similarity to the selected molecule. This avoids selecting
+    clusters of near-identical compounds.
+    """
     novelty_scores = compute_novelty(pool_df["SMILES"].tolist(), train_smiles)
     scores = acquisition_score(mean_probs, uncertainty, novelty_scores)
 
-    df = pool_df.copy()
-    df["_score"] = scores
-    df = df.sort_values("_score", ascending=False)
-    return df.head(selection_size).drop(columns=["_score"])
+    if not diverse:
+        df = pool_df.copy()
+        df["_score"] = scores
+        df = df.sort_values("_score", ascending=False)
+        return df.head(selection_size).drop(columns=["_score"])
+
+    # Greedy diverse selection
+    pool_smiles = pool_df["SMILES"].tolist()
+    pool_fps = []
+    for s in pool_smiles:
+        mol = Chem.MolFromSmiles(s)
+        pool_fps.append(AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048) if mol else None)
+
+    remaining = list(range(len(pool_smiles)))
+    selected_indices = []
+    current_scores = scores.copy()
+
+    for _ in range(min(selection_size, len(remaining))):
+        # Pick best remaining
+        best_idx = max(remaining, key=lambda i: current_scores[i])
+        selected_indices.append(best_idx)
+        remaining.remove(best_idx)
+
+        # Downweight remaining by similarity to selected
+        if remaining and pool_fps[best_idx] is not None:
+            for i in remaining:
+                if pool_fps[i] is not None:
+                    sim = DataStructs.TanimotoSimilarity(pool_fps[best_idx], pool_fps[i])
+                    current_scores[i] *= (1.0 - W_DIVERSITY * sim)
+
+    return pool_df.iloc[selected_indices].reset_index(drop=True)
 
 
 def main():
@@ -298,6 +333,7 @@ def main():
         selected = select_molecules(
             pool_df, mean_probs, uncertainty,
             train_df["SMILES"].tolist(), SELECTION_SIZE,
+            diverse=BATCH_DIVERSE,
         )
         selected_smiles = selected["SMILES"].tolist()
 
