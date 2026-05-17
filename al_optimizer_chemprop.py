@@ -330,7 +330,7 @@ def main():
         )
         selected_smiles = selected["SMILES"].tolist()
 
-        novelty = compute_novelty(selected_smiles, train_df["SMILES"].tolist())
+        novelty = float(np.mean(compute_novelty(selected_smiles, train_df["SMILES"].tolist())))
         diversity = compute_diversity(selected_smiles)
 
         # Reveal labels ONLY after selection
