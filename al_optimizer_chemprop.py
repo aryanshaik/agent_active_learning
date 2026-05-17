@@ -161,14 +161,16 @@ def load_predictions(pred_csv: str) -> Tuple[np.ndarray, np.ndarray]:
 def compute_test_metrics(pred_csv: str, test_df: pd.DataFrame) -> dict:
     """Compute AUROC/AUPRC/hit_rate from prediction CSV."""
     pred_df = pd.read_csv(pred_csv)
-    merged = pred_df.merge(test_df[["SMILES", "Y"]], on="SMILES", how="inner")
+    # Merge on SMILES — test_df only contributes the true Y label
+    merged = pred_df.merge(test_df[["SMILES", "Y"]].rename(columns={"Y": "_true_Y"}), on="SMILES", how="inner")
     if len(merged) == 0:
         return {"auroc": 0.5, "auprc": 0.0, "hit_rate": 0.0}
-    y_true = merged["Y"].values.astype(float)
+    y_true = merged["_true_Y"].values.astype(float)
+    # Prediction column from pred_df (Y_x after merge, or Y if test_df Y renamed)
     prob_col = "Y"
-    if prob_col not in pred_df.columns:
-        for c in pred_df.columns:
-            if c != "SMILES" and "uncertainty" not in c.lower():
+    if prob_col not in merged.columns:
+        for c in merged.columns:
+            if c != "SMILES" and c != "_true_Y" and "uncertainty" not in c.lower():
                 prob_col = c
                 break
     y_prob = merged[prob_col].values.astype(float)
