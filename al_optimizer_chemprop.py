@@ -125,9 +125,7 @@ def predict_chemprop(model_dir: str, smiles_csv: str, output_csv: str) -> str:
         "--smiles_columns", "SMILES",
         "--checkpoint_paths"] + checkpoints + [
         "--preds_path", output_csv,
-        "--dataset_type", "classification",
         "--uncertainty_method", "dirichlet",
-        "--loss_function", "dirichlet",
     ]
     args = PredictArgs().parse_args(raw_args)
 
