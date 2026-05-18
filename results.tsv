@@ -1,2 +1,3 @@
 commit	iteration	test_auroc	test_auprc	hit_rate	status	description
 bc8d6ef	0	0.702335	0.025367	0.144475	baseline	Default weights (W_INHIB=0.5,W_UNC=1.0,W_NOV=0.3,W_DIV=0.2)
+78532d7	1	0.708942	0.029415	0.093140	run	Agent-modified weights
