@@ -65,7 +65,7 @@ def apply_changes(changes):
         f.write(code)
 
 
-def run_iteration():
+def run_iteration(iteration):
     """Run one AL iteration and return metrics."""
     cmd = [
         sys.executable, "-u", "al_optimizer_chemprop.py",
@@ -75,7 +75,9 @@ def run_iteration():
         "--iters", "1",
         "--work_dir", "al_chemprop_runs",
     ]
-    log_file = os.path.join(WORK_DIR, f"al_run_iter.log")
+    log_file = os.path.join(WORK_DIR, f"al_run_iter_{iteration}.log")
+    if iteration == 0:
+        log_file = os.path.join(WORK_DIR, "al_run.log")
     with open(log_file, "w") as f:
         result = subprocess.run(cmd, cwd=WORK_DIR, stdout=f, stderr=subprocess.STDOUT)
     with open(log_file) as f:
@@ -144,7 +146,7 @@ def main():
 
         # Run iteration
         print(f"  Running iteration {iteration}...")
-        metrics = run_iteration()
+        metrics = run_iteration(iteration)
         if metrics is None:
             print("  ERROR: iteration failed!")
             with open(tsv_path, "a") as f:
