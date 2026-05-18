@@ -51,7 +51,7 @@ Each iteration:
 | Iter | AUROC | AUPRC | Train Size |
 |------|-------|-------|------------|
 | 0 | 0.760 | 0.052 | 20,764 |
-| 1 | 0.768 | 0.064 | 21,764 |
+| 1 | **0.768** | 0.064 | 21,764 |
 | 2 | 0.763 | 0.064 | 22,764 |
 | 3 | 0.759 | 0.068 | 23,764 |
 | 4 | 0.767 | 0.064 | 24,764 |
@@ -59,8 +59,18 @@ Each iteration:
 
 Best: **0.768 AUROC** (iteration 1), CV mean AUROC: 0.866
 
-### Agent-Driven (in progress)
-[TBD]
+### Agent-Driven (awaiting GPU queue)
+The DeepSeek-driven agent loop (`agent_deepseek.py`) is queued on O2 gpu_quad
+(job awaiting GPU allocation). The agent:
+1. Calls DeepSeek API directly (no opencode dependency)
+2. Receives trajectory context (results.tsv)
+3. Returns JSON-structured acquisition weight changes
+4. Modifies `al_optimizer_chemprop.py`, commits, runs training
+5. Loops for 10 iterations
+
+Estimated completion: ~13 hours from job start (10 × 80 min/iter).
+
+**Status**: All code, data, and infrastructure ready. Awaiting O2 GPU allocation.
 
 ## Comparison: MiniMol vs DMPNN
 
