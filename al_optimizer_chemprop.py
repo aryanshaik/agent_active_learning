@@ -55,10 +55,10 @@ from chemprop.train.run_training import run_training
 from chemprop.train.make_predictions import make_predictions as chemprop_make_predictions
 
 # ── Acquisition weights (agent modifies these) ─────────────────────────────
-W_INHIBITION = 0.9
-W_UNCERTAINTY = 1.2
-W_NOVELTY = 0.7
-W_DIVERSITY = 0.4
+W_INHIBITION = 0.6
+W_UNCERTAINTY = 1.6
+W_NOVELTY = 1.0
+W_DIVERSITY = 0.5
 BATCH_DIVERSE = True
 SELECTION_SIZE = 1000
 VALIDATION_FRAC = 0.1
