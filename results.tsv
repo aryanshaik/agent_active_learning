@@ -1,10 +1,10 @@
-commit	iteration	test_auroc	test_auprc	hit_rate	status	description
-bc8d6ef	0	0.702335	0.025367	0.144475	baseline	Default weights (W_INHIB=0.5,W_UNC=1.0,W_NOV=0.3,W_DIV=0.2)
-78532d7	1	0.708942	0.029415	0.093140	run	Agent-modified weights
-4179a60	2	0.709679	0.028354	0.293691	run	Agent-modified weights
-ff4f1bc	3	0.712930	0.028763	0.195181	run	Agent-modified weights
-8f15b07	4	0.729952	0.030152	0.126211	run	Agent-modified weights
-96277ec	5	0.737934	0.031651	0.215404	run	Agent-modified weights
-044e36c	6	0.739533	0.031776	0.192454	run	Agent-modified weights
-0e5507f	7	0.736836	0.029864	0.151028	run	Agent-modified weights
-850021e	8	0.756874	0.033822	0.163302	run	Agent-modified weights
+commit	iteration	test_auroc	test_auprc	hit_rate	W_INHIB	W_UNC	W_NOV	W_DIV	BATCH_DIVERSE	status	strategy
+bc8d6ef	0	0.702335	0.025367	0.144475	0.5	1.0	0.3	0.2	False	baseline	Default weights — no modifications
+78532d7	1	0.708942	0.029415	0.093140	0.2	1.5	1.0	0.5	True	run	Aggressive exploration: cut inhibition, spiked novelty+uncertainty, enabled diverse batch. AUPRC critically low — need diverse OOD actives
+4179a60	2	0.709679	0.028354	0.293691	0.4	1.5	0.6	0.4	True	run	Balanced exploitation: raised inhibition to leverage improving AUROC, reduced novelty to avoid OOD negatives. AUPRC still low
+ff4f1bc	3	0.712930	0.028763	0.195181	0.2	1.5	1.2	0.6	True	run	Re-exploration: hit rate tripled but model overconfident — cut inhibition, spiked novelty+diversity to force unfamiliar chemical space
+8f15b07	4	0.729952	0.030152	0.126211	0.6	1.8	0.5	0.4	True	run	Confident exploration pivot: AUROC trending up so model signal is real — raised inhibition+uncertainty, cut novelty+diversity. BREAKTHROUGH +0.017
+96277ec	5	0.737934	0.031651	0.215404	0.7	1.5	0.8	0.5	True	run	Momentum: AUROC jumped +0.017 — increasing inhibition to exploit signal, adding novelty to find diverse positives
+044e36c	6	0.739533	0.031776	0.192454	0.9	1.2	0.7	0.4	False	run	Late-stage exploitation: 3 iterations at all-time highs — maximize inhibition, reduce uncertainty+novelty as we converge
+0e5507f	7	0.736836	0.029864	0.151028	0.6	1.6	1.0	0.5	True	run	Exploration reset: plateau detected — drastic cut to inhibition, spiked uncertainty+novelty to find remaining positives. Regression confirmed dead end
+850021e	8	0.756874	0.033822	0.163302	0.9	1.0	0.5	0.3	False	run	Exploitation peak: reverted to iter 6 config after failed exploration pulse. AUROC +0.020 — BEST RESULT
