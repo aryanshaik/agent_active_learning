@@ -60,7 +60,7 @@ Each iteration:
 Best: **0.768 AUROC** (iteration 1), CV mean AUROC: 0.866
 
 ### Agent-Driven (awaiting GPU queue)
-The DeepSeek-driven agent loop (`agent_deepseek.py`) is queued on O2 gpu_quad
+The DeepSeek-driven agent loop (`agent.py`) is queued on O2 gpu_quad
 (job awaiting GPU allocation). The agent:
 1. Calls DeepSeek API directly (no opencode dependency)
 2. Receives trajectory context (results.tsv)
